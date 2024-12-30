@@ -120,6 +120,7 @@ def upload_data(df):
         )
         result["success"] = res.text
         logging.info(result)
+        send_email(result)
         return result
     
 
