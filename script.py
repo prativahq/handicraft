@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-tables = ["7903_wc_customer_lookup", "7903_wc_order_stats", "7903_wc_order_product_lookup", "7903_wc_product_meta_lookup", "7903_term_taxonomy"]
+tables = ["7903_wc_customer_lookup", "7903_wc_order_stats", "7903_wc_order_product_lookup", "7903_posts", "7903_term_taxonomy"]
 
 
 # Database configuration (store these in environment variables for security)
@@ -409,9 +409,7 @@ def process_and_save_teachers(changes):
 
 if __name__ == "__main__":
     for table in tables:
-        print(table)
         changes_data = fetch_changes(table)
-        print(changes_data)
         if changes_data is None:
             continue
         # if table == "7903_wc_customer_lookup": 
