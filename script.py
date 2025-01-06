@@ -412,9 +412,9 @@ if __name__ == "__main__":
         changes_data = fetch_changes(table)
         if changes_data is None:
             continue
-        if table == "7903_wc_customer_lookup": 
-            process_and_save_members(changes_data)
-        elif table == "7903_wc_order_stats":
+        # if table == "7903_wc_customer_lookup": 
+        #     process_and_save_members(changes_data)
+        if table == "7903_wc_order_stats":
             process_and_save_orders(changes_data)
         elif table == "7903_wc_order_product_lookup":
             process_and_save_order_items(changes_data)
