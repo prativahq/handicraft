@@ -182,6 +182,7 @@ def process_and_save_members(changes):
 
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
+    logging.info(df)
     
 
     df = df[["first_name", "last_name", "email", "city", "customer_id", "phone", "state", "postcode", "customer_id", "membership_plan"]]
