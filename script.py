@@ -247,7 +247,7 @@ def process_and_save_orders(changes):
                         "order_id": "Order_Number__c", 
                         "date_created": "Order_Date__c" }, inplace=True, errors="ignore")
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-    df["Order_Status__c"] = df["Order_Status__c"].apply({"wc-refunded": "refunded",
+    df["Order_Status__c"] = df["Order_Status__c"].map({"wc-refunded": "refunded",
                             "wc-processing": "processing",
                             "wc-completed": "completed",
                             "wc-on-hold": "on-hold",
