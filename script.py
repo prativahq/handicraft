@@ -291,11 +291,11 @@ def process_and_save_product(changes):
         return
     ids = [change["id"] for change in changes]
     query = f"""SELECT p.*
-                opl.max_price as price
+                opl.max_price
                 FROM 7903_posts p 
                 LEFT JOIN 7903_wc_order_product_lookup opl ON p.ID = opl.product_id
                 WHERE p.post_type = 'product' 
-                AND p.order_id IN ({', '.join(['%s'] * len(ids))})"""
+                AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
@@ -319,9 +319,9 @@ def process_and_save_product(changes):
     day_of_week = pd.DataFrame(day_of_week)
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "price" ]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price" ]]
     df = df.map(convert)
-    df.rename(columns={"ID": "Product_Identifier__c", "post_title": "Product_Name__c", "guid": "Product_Page_URL__c", "price": "Regular_Price__c" }, inplace=True, errors="ignore")
+    df.rename(columns={"ID": "Product_Identifier__c", "post_title": "Product_Name__c", "guid": "Product_Page_URL__c", "max_price": "Regular_Price__c" }, inplace=True, errors="ignore")
     df["Did_Not_Run__c"] = False
     df["Post_Date__c"] = pd.to_datetime(df["post_date"]).dt.strftime('%Y-%m-%d')
     df["Time__c"] = pd.to_datetime(df["post_date"]).dt.strftime('%H:%M:%S')
