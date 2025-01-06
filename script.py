@@ -252,7 +252,7 @@ def process_and_save_orders(changes):
                             "wc-completed": "completed",
                             "wc-on-hold": "on-hold",
                             "wc-cancelled": "cancelled"})
-    df["Refund_Items__c"] = np.where((df["parent_id"] != 0) & (df["Order_Status__c"] == "wc-refunded"), "Refunded", "")
+    df["Refund_Items__c"] = np.where((df["parent_id"] != 0) & (df["Order_Status__c"] == "refunded"), "Refunded", "")
     
     
     df = df.map(convert)
