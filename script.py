@@ -87,6 +87,7 @@ def upload_data(df, table):
 
     time.sleep(10)
     id = res["id"]
+    cnt = 0
     while True:
         res = requests.get(
             f"{SALESFORCE_URI}/{id}",
@@ -95,7 +96,12 @@ def upload_data(df, table):
                 "Authorization": f"Bearer {SALESFORCE_API_KEY}",
             },
         )
+
         res = res.json()
+        print(res)
+        if cnt == 3:
+            break
+        cnt += 1
         if res["state"] == "InProgress":
             time.sleep(10)
             continue
