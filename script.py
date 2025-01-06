@@ -254,7 +254,7 @@ def process_and_save_orders(changes):
                             "wc-cancelled": "cancelled"})
     df["Refund_Items__c"] = np.where((df["parent_id"] != 0) & (df["Order_Status__c"] == "refunded"), "Refunded", "")
     
-    
+    df.drop(columns=["parent_id"], inplace=True)
     df = df.map(convert)
 
     upload_data(df, "HC_Order__c")
@@ -414,14 +414,14 @@ if __name__ == "__main__":
             continue
         # if table == "7903_wc_customer_lookup": 
         #     process_and_save_members(changes_data)
-        if table == "7903_wc_order_stats":
-            process_and_save_orders(changes_data)
-        elif table == "7903_wc_order_product_lookup":
-            process_and_save_order_items(changes_data)
-        elif table == "7903_posts":
-            process_and_save_product(changes_data)
-        elif table == "7903_term_taxonomy":
+        # if table == "7903_wc_order_stats":
+        #     process_and_save_orders(changes_data)
+        # if table == "7903_wc_order_product_lookup":
+        #     process_and_save_order_items(changes_data)
+        if table == "7903_term_taxonomy":
             process_and_save_teachers(changes_data)
+        if table == "7903_posts":
+            process_and_save_product(changes_data)
 
     
 # order_item - 35  "Monday Knitting Circle with Kay Mehls"
