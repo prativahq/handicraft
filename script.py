@@ -159,17 +159,18 @@ def process_and_save_members(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT 
+    query = f"""
+        SELECT 
             wcl.*,
-            um.meta_value as phone
+            um.meta_value as phone,
             p.ID as membership_plan
         FROM 
             7903_wc_customer_lookup wcl
         LEFT JOIN 
             7903_usermeta um ON wcl.user_id = um.user_id AND um.meta_key = 'billing_phone'
-        LEFT JOIN
-            7903_posts p ON wcl.user_id = p.ID AND p.post_parent IN (411, 6510, 6511, 6514, 7478, 413, 412, 7472, 7385, 7384, 7386)
-        WHERE
+        LEFT JOIN 
+            7903_posts p ON wcl.user_id = p.post_author
+        WHERE 
             wcl.customer_id IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
