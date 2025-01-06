@@ -68,3 +68,23 @@ CREATE TABLE `trigger_table` (
     `is_processed` TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+
+CREATE TABLE `7903_usermeta` (
+    `umeta_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+    `meta_key` varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+    `meta_value` longtext COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+    PRIMARY KEY (`umeta_id`),
+    KEY `user_id` (`user_id`),
+    KEY `meta_key` (`meta_key`(191))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+-- Sample data inserts
+INSERT INTO `7903_usermeta` (`user_id`, `meta_key`, `meta_value`) VALUES
+(1001, 'billing_phone', '+1-555-0123'),
+(1001, 'billing_address', '123 Main St'),
+(1002, 'billing_phone', '+1-555-4567'),
+(1003, 'shipping_address', '789 Oak Road');

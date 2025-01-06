@@ -4,6 +4,7 @@ import time
 import requests
 import pandas as pd
 import os, sys
+import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
 import logging
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-tables = ["7903_wc_customer_lookup", "7903_wc_order_stats", "7903_wc_order_product_lookup", "7903_wc_product_meta_lookup"]
+tables = ["7903_wc_customer_lookup", "7903_wc_order_stats", "7903_wc_order_product_lookup", "7903_wc_product_meta_lookup", "7903_term_taxonomy"]
 
 
 # Database configuration (store these in environment variables for security)
@@ -47,7 +48,7 @@ def send_email(content):
         return e
 
 
-def upload_data(df):
+def upload_data(df, table):
     result = {}
     result["from_db"] = df.to_dict(orient="records")
     csv = df.to_csv(index=False, header=True)
@@ -57,7 +58,7 @@ def upload_data(df):
             None,
             json.dumps(
                 {
-                    "object": "HC_Member__c",
+                    "object": table,
                     "contentType": "CSV",
                     "operation": "insert",
                     "lineEnding": "CRLF" if sys.platform.startswith('win') else "LF",
@@ -161,11 +162,14 @@ def process_and_save_members(changes):
     query = f"""SELECT 
             wcl.*,
             um.meta_value as phone
+            p.ID as membership_plan
         FROM 
             7903_wc_customer_lookup wcl
         LEFT JOIN 
             7903_usermeta um ON wcl.user_id = um.user_id AND um.meta_key = 'billing_phone'
-        WHERE 
+        LEFT JOIN
+            7903_posts p ON wcl.user_id = p.ID AND p.post_parent IN (411, 6510, 6511, 6514, 7478, 413, 412, 7472, 7385, 7384, 7386)
+        WHERE
             wcl.customer_id IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -177,15 +181,37 @@ def process_and_save_members(changes):
 
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
-    #  "membership_plan", "member_since", 
-    #  "membership_plan": "Membership_Plan__c", "member_since": "Member_Since__c", 
+    
 
-    df = df[["first_name", "last_name", "email", "city", "customer_id", "phone", "state", "postcode", "customer_id"]]
-    df.rename(columns={"customer_id": "Member_ID__c", "first_name": "First_Name__c", "last_name": "Last_Name__c", "email": "Email__c", "city": "City__c", "phone": "Primary_Phone__c", "state": "State__c", "postcode": "Zipcode__c", }, inplace=True, errors="ignore")
+    df = df[["first_name", "last_name", "email", "city", "customer_id", "phone", "state", "postcode", "customer_id", "membership_plan"]]
+    df.rename(columns={"customer_id": "Member_ID__c", 
+                    "first_name": "First_Name__c", 
+                    "last_name": "Last_Name__c", 
+                    "email": "Email__c", 
+                    "city": "City__c", 
+                    "phone": "Primary_Phone__c", 
+                    "state": "State__c", 
+                    "postcode": "Zipcode__c", 
+                    "membership_plan": "Membership_Plan__c"}, 
+                    inplace=True, errors="ignore")
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
+    df["Member_Status__c"] = "Active"
+    df["Membership_Plans__c"] = df["membership_plan"].map({
+        411: "Active Member",
+        6510: "Active Mernber - Emeritus",
+        6511: "Active Member - Out of Town",
+        6514: "Active Mernber - Senior",
+        7478: "Active Member - Staff",
+        413: "Guest",
+        412: "Guests with Provisional Status (GPS)",
+        7472: "Leave of Absence (LOA)",
+        7385: "Resigned - Bad",
+        7384: "Resigned - Good",
+        7386: "Deceased"
+    })
     df = df.map(convert)
 
-    upload_data(df)
+    upload_data(df, "HC_Member__c")
 
 
 def process_and_save_orders(changes):
@@ -205,13 +231,24 @@ def process_and_save_orders(changes):
     logging.info(f"Processing {len(df)} records")
 
     #  Customer_Note__c, Order_Notes__c, Payment_Method__c, Reference__c, Refund_Items__c, Transaction_ID__c
-    df = df[["date_completed", "customer_id", "status", "order_id", "date_created" ]]
-    df.rename(columns={"date_completed": "Completed_Date__c", "customer_id": "Member_ID__c", "status": "Order_Status__c", "order_id": "Order_Number__c", "date_created": "Order_Date__c" }, inplace=True, errors="ignore")
+    df = df[["date_completed", "customer_id", "status", "order_id", "date_created", "parent_id" ]]
+    df.rename(columns={"date_completed": "Completed_Date__c", 
+                        "customer_id": "Member_ID__c", 
+                        "status": "Order_Status__c", 
+                        "order_id": "Order_Number__c", 
+                        "date_created": "Order_Date__c" }, inplace=True, errors="ignore")
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-
+    df["Status_c"].apply({"wc-refunded": "refunded",
+                            "wc-processing": "processing",
+                            "wc-completed": "completed",
+                            "wc-on-hold": "on-hold",
+                            "wc-cancelled": "cancelled"})
+    df["Refund_Items__c"] = np.where((df["parent_id"] != 0) & (df["status"] == "wc-refunded"), "Refunded", "")
+    
+    
     df = df.map(convert)
 
-    upload_data(df)
+    upload_data(df, "HC_Order__c")
 
 
 def process_and_save_order_items(changes):
@@ -237,15 +274,89 @@ def process_and_save_order_items(changes):
 
     df = df.map(convert)
 
-    upload_data(df)
+    upload_data(df, "HC_Order_Item__c")
 
 
 def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT * FROM 7903_posts WHERE post_type = 'product' 
-                AND order_id IN ({', '.join(['%s'] * len(ids))})"""
+    query = f"""SELECT p.*
+                opl.max_price as price
+                FROM 7903_posts p 
+                LEFT JOIN 7903_wc_order_product_lookup opl ON p.ID = opl.product_id
+                WHERE p.post_type = 'product' 
+                AND p.order_id IN ({', '.join(['%s'] * len(ids))})"""
+    mydb = mysql.connector.connect(
+        host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+    )
+    mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
+    mycursor.execute(query, ids)
+    results = mycursor.fetchall()
+
+    mycursor.execute("SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (23, 192, 256, 27, 111, 42, 64);")
+    categories = mycursor.fetchall()
+
+    mycursor.execute("SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (31, 32, 37, 34, 40, 48);")
+    day_of_week = mycursor.fetchall()
+
+    mydb.close()  # Close the connection as soon as we're done
+
+    if results is None or len(results) == 0:
+        return
+    
+    df = pd.DataFrame(results)
+    categories = pd.DataFrame(categories)
+    day_of_week = pd.DataFrame(day_of_week)
+    logging.info(f"Processing {len(df)} records")
+
+    df = df[["ID", "post_title", "post_date", "guid", "price" ]]
+    df = df.map(convert)
+    df.rename(columns={"ID": "Product_Identifier__c", "post_title": "Product_Name__c", "guid": "Product_Page_URL__c", "price": "Regular_Price__c" }, inplace=True, errors="ignore")
+    df["Did_Not_Run__c"] = False
+    df["Post_Date__c"] = pd.to_datetime(df["post_date"]).dt.strftime('%Y-%m-%d')
+    df["Time__c"] = pd.to_datetime(df["post_date"]).dt.strftime('%H:%M:%S')
+    df["Trimester__c"] = df["post_date"].dt.month.map(lambda x: "Spring" if x in [ 4, 5, 6, 7] else "Fall" if x in [8, 9, 10, 11] else "Winter")
+    df["Year__c"] = df["post_date"].dt.year
+    df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
+    df["Category__c"] = df["ID"].apply(
+        lambda x: categories.loc[categories.object_id == x, "cat"].iloc[0] 
+        if x in categories.object_id.values else None).apply({
+            23: "Classes",
+            192: "Clubhouse Only",
+            256: "Event",
+            27: "Membership",
+            111: "Open Studios",
+            42: "Transportation",
+            64: "Workshops"
+        })
+    df["Day_of_Week__c"] = df["ID"].apply(
+        lambda x: day_of_week.loc[day_of_week.object_id == x, "cat"].iloc[0]
+        if x in day_of_week.object_id.values else None).apply({
+            31: "Monday",
+            32: "Tuesday",
+            37: "Wednesday",
+            34: "Thursday",
+            40: "Friday",
+            48: "Saturday"
+        })
+    
+    
+    df = df.map(convert)
+    upload_data(df, "HC_Product__c")
+
+# SELECT 7903_terms.name
+# FROM 7903_terms
+# JOIN 7903_term_taxonomy ON 7903_terms.term_id = 7903_term_taxonomy.term_id
+# WHERE 7903_term_taxonomy.taxonomy = 'product_tag';
+
+
+
+def process_and_save_teachers(changes):
+    if changes is None or len(changes) == 0:
+        return
+    ids = [change["id"] for change in changes]
+    query = f"""SELECT * FROM 7903_terms WHERE term_id IN (SELECT term_id from 7903_term_taxonomy WHERE term_id  IN ({', '.join(['%s'] * len(ids))}) AND parent = 248)"""
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
@@ -254,25 +365,16 @@ def process_and_save_product(changes):
     results = mycursor.fetchall()
     mydb.close()  # Close the connection as soon as we're done
 
-    if results is None or len(results) == 0:
-        return
-    
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid" ]]
+    df = df[["name" ]]
+    df.rename(columns={"name": "Name" }, inplace=True, errors="ignore")
+    df["Also_a_Member__c"] = False
+
     df = df.map(convert)
-    df.rename(columns={"ID": "Product_Identifier__c", "post_title": "Product_Name__c", "guid": "Product_Page_URL__c" }, inplace=True, errors="ignore")
-    df["Did_Not_Run__c"] = False
-    df["Post_Date__c"] = pd.to_datetime(df["post_date"]).dt.strftime('%Y-%m-%d')
-    df["Time__c"] = pd.to_datetime(df["post_date"]).dt.strftime('%H:%M:%S')
-    df["Trimester__c"] = df["post_date"].dt.month.map(lambda x: "Spring" if x in [ 4, 5, 6, 7] else "Fall" if x in [8, 9, 10, 11] else "Winter")
-    df["Year__c"] = df["post_date"].dt.year
-    df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-    df["Day_of_Week__c"] = df["post_date"].dt.day_name().str.capitalize()
-    upload_data(df)
 
-
+    upload_data(df, "HC_Teacher__c")
 
 # def update_processed_flags(changes):
 #     try:
@@ -309,6 +411,10 @@ if __name__ == "__main__":
             process_and_save_order_items(changes_data)
         elif table == "7903_posts":
             process_and_save_product(changes_data)
+        elif table == "7903_term_taxonomy":
+            process_and_save_teachers(changes_data)
+
     
 # order_item - 35  "Monday Knitting Circle with Kay Mehls"
 # product - 762 
+
