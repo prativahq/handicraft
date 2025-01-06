@@ -421,6 +421,7 @@ if __name__ == "__main__":
         # if table == "7903_term_taxonomy":
         #     process_and_save_teachers(changes_data)
         if table == "7903_posts":
+            print("Processing products")
             process_and_save_product(changes_data)
 
     
