@@ -409,7 +409,9 @@ def process_and_save_teachers(changes):
 
 if __name__ == "__main__":
     for table in tables:
+        print(table)
         changes_data = fetch_changes(table)
+        print(changes_data)
         if changes_data is None:
             continue
         # if table == "7903_wc_customer_lookup": 
