@@ -418,8 +418,8 @@ if __name__ == "__main__":
         #     process_and_save_orders(changes_data)
         # if table == "7903_wc_order_product_lookup":
         #     process_and_save_order_items(changes_data)
-        if table == "7903_term_taxonomy":
-            process_and_save_teachers(changes_data)
+        # if table == "7903_term_taxonomy":
+        #     process_and_save_teachers(changes_data)
         if table == "7903_posts":
             process_and_save_product(changes_data)
 
