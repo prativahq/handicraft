@@ -198,19 +198,20 @@ def process_and_save_members(changes):
                     inplace=True, errors="ignore")
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Member_Status__c"] = "Active"
-    df["Membership_Plans__c"] = df["Membership_Plans__c"].map({
-        411: "Active Member",
-        6510: "Active Mernber - Emeritus",
-        6511: "Active Member - Out of Town",
-        6514: "Active Mernber - Senior",
-        7478: "Active Member - Staff",
-        413: "Guest",
-        412: "Guests with Provisional Status (GPS)",
-        7472: "Leave of Absence (LOA)",
-        7385: "Resigned - Bad",
-        7384: "Resigned - Good",
-        7386: "Deceased"
-    })
+    # df["Membership_Plans__c"] = df["Membership_Plans__c"].map({
+    #     411: "Active Member",
+    #     6510: "Active Mernber - Emeritus",
+    #     6511: "Active Member - Out of Town",
+    #     6514: "Active Mernber - Senior",
+    #     7478: "Active Member - Staff",
+    #     413: "Guest",
+    #     412: "Guests with Provisional Status (GPS)",
+    #     7472: "Leave of Absence (LOA)",
+    #     7385: "Resigned - Bad",
+    #     7384: "Resigned - Good",
+    #     7386: "Deceased"
+    # })
+    df["Membership_Plan__c"] = "Active Member"
     df = df.map(convert)
 
     upload_data(df, "HC_Member__c")
