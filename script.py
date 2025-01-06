@@ -197,7 +197,7 @@ def process_and_save_members(changes):
                     inplace=True, errors="ignore")
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Member_Status__c"] = "Active"
-    df["Membership_Plans__c"] = df["membership_plan"].map({
+    df["Membership_Plans__c"] = df["Membership_Plans__c"].map({
         411: "Active Member",
         6510: "Active Mernber - Emeritus",
         6511: "Active Member - Out of Town",
