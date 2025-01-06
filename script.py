@@ -290,12 +290,11 @@ def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT p.*
-                opl.max_price
-                FROM 7903_posts p 
-                LEFT JOIN 7903_wc_order_product_lookup opl ON p.ID = opl.product_id
-                WHERE p.post_type = 'product' 
-                AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
+    query = f"""SELECT p.*, opl.max_price
+            FROM 7903_posts AS p
+            LEFT JOIN 7903_wc_order_product_lookup AS opl ON p.ID = opl.product_id
+            WHERE p.post_type = 'product'
+            AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
