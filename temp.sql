@@ -56,6 +56,82 @@ BEGIN
     );
 END
 
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.order_id,
+        NOW(),
+        'INSERT',
+        '7903_wc_order_stats',
+        0
+    );
+END
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.order_id,
+        NOW(),
+        'INSERT',
+        '7903_wc_order_product_lookup',
+        0
+    );
+END
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.term_id,
+        NOW(),
+        'INSERT',
+        '7903_term_taxonomy',
+        0
+    );
+END
+
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.ID,
+        NOW(),
+        'INSERT',
+        '7903_posts',
+        0
+    );
+END
 
 -- setup trigegr table
 USE test_db;

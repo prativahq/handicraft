@@ -98,8 +98,9 @@ def upload_data(df, table):
         )
 
         res = res.json()
-        print(res)
+        logging.info(res)
         if cnt == 3:
+            logging.info("Failed to upload data")
             break
         cnt += 1
         if res["state"] == "InProgress":
@@ -127,7 +128,7 @@ def upload_data(df, table):
         )
         result["success"] = res.text
         logging.info(result)
-        send_email(result)
+        # send_email(result)
         return result
     
 
@@ -407,15 +408,15 @@ if __name__ == "__main__":
         changes_data = fetch_changes(table)
         if changes_data is None:
             continue
-        print(f"Processing {table}")
+        logging.info(f"Processing {table}")
         if table == "7903_wc_customer_lookup": 
             process_and_save_members(changes_data)
-        # if table == "7903_wc_order_stats":
-        #     process_and_save_orders(changes_data)
-        # if table == "7903_wc_order_product_lookup":
-        #     process_and_save_order_items(changes_data)
-        # if table == "7903_term_taxonomy":
-        #     process_and_save_teachers(changes_data)
+        if table == "7903_wc_order_stats":
+            process_and_save_orders(changes_data)
+        if table == "7903_wc_order_product_lookup":
+            process_and_save_order_items(changes_data)
+        if table == "7903_term_taxonomy":
+            process_and_save_teachers(changes_data)
         if table == "7903_posts":
             process_and_save_product(changes_data)
 
