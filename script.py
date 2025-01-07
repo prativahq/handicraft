@@ -292,7 +292,7 @@ def process_and_save_product(changes):
     ids = [change["id"] for change in changes]
     query = f"""SELECT p.*, opl.max_price
             FROM 7903_posts AS p
-            LEFT JOIN 7903_wc_order_product_lookup AS opl ON p.ID = opl.product_id
+            LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
             WHERE p.post_type = 'product'
             AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
@@ -353,10 +353,6 @@ def process_and_save_product(changes):
     df = df.map(convert)
     upload_data(df, "HC_Product__c")
 
-# SELECT 7903_terms.name
-# FROM 7903_terms
-# JOIN 7903_term_taxonomy ON 7903_terms.term_id = 7903_term_taxonomy.term_id
-# WHERE 7903_term_taxonomy.taxonomy = 'product_tag';
 
 
 
@@ -411,8 +407,9 @@ if __name__ == "__main__":
         changes_data = fetch_changes(table)
         if changes_data is None:
             continue
-        # if table == "7903_wc_customer_lookup": 
-        #     process_and_save_members(changes_data)
+        print(f"Processing {table}")
+        if table == "7903_wc_customer_lookup": 
+            process_and_save_members(changes_data)
         # if table == "7903_wc_order_stats":
         #     process_and_save_orders(changes_data)
         # if table == "7903_wc_order_product_lookup":
@@ -420,7 +417,6 @@ if __name__ == "__main__":
         # if table == "7903_term_taxonomy":
         #     process_and_save_teachers(changes_data)
         if table == "7903_posts":
-            print("Processing products")
             process_and_save_product(changes_data)
 
     
