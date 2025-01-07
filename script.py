@@ -437,7 +437,7 @@ def process_and_save_product(changes):
     df["Did_Not_Run__c"] = False
     df["Post_Date__c"] = pd.to_datetime(df["post_date"]).dt.strftime("%Y-%m-%d")
     df.drop(columns=["post_date"], inplace=True)
-    df["Time__c"] = pd.to_datetime(df["post_date"]).dt.strftime("%H:%M:%S")
+    df["Time__c"] = pd.to_datetime(df["Post_Date__c"]).dt.strftime("%H:%M:%S")
     df["Trimester__c"] = df["Post_Date__c"].dt.month.map(
         lambda x: "Spring"
         if x in [4, 5, 6, 7]
