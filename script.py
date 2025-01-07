@@ -221,9 +221,10 @@ def process_and_save_members(changes):
     })
     df = df.fillna("")
     # df["Membership_Plan__c"] = "Active Member"
+    
     df = df.map(convert)
-
-    upload_data(df, "HC_Member__c")
+    logging.info(df)
+    # upload_data(df, "HC_Member__c")
 
 
 def process_and_save_orders(changes):
