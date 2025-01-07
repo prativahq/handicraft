@@ -139,7 +139,7 @@ def upload_data(df, table):
 
     time.sleep(10)
     id = res["id"]
-    cnt = 0
+    # cnt = 0
     while True:
         res = requests.get(
             f"{SALESFORCE_URI}/{id}",
@@ -151,10 +151,10 @@ def upload_data(df, table):
 
         res = res.json()
         logging.info(res)
-        if cnt == 3:
-            logging.info("Failed to upload data")
-            break
-        cnt += 1
+        # if cnt == 3:
+        #     logging.info("Failed to upload data")
+        #     break
+        # cnt += 1
         if res["state"] == "InProgress":
             time.sleep(10)
             continue
@@ -436,15 +436,16 @@ def process_and_save_product(changes):
     )
     df["Did_Not_Run__c"] = False
     df["Post_Date__c"] = pd.to_datetime(df["post_date"]).dt.strftime("%Y-%m-%d")
+    df.drop(columns=["post_date"], inplace=True)
     df["Time__c"] = pd.to_datetime(df["post_date"]).dt.strftime("%H:%M:%S")
-    df["Trimester__c"] = df["post_date"].dt.month.map(
+    df["Trimester__c"] = df["Post_Date__c"].dt.month.map(
         lambda x: "Spring"
         if x in [4, 5, 6, 7]
         else "Fall"
         if x in [8, 9, 10, 11]
         else "Winter"
     )
-    df["Year__c"] = df["post_date"].dt.year
+    df["Year__c"] = df["Post_Date__c"].dt.year
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Category__c"] = (
         df["ID"]
@@ -541,8 +542,8 @@ if __name__ == "__main__":
         if changes_data is None:
             continue
         logging.info(f"Processing {table}")
-        if table == "7903_wc_customer_lookup":
-            process_and_save_members(changes_data)
+        # if table == "7903_wc_customer_lookup":
+        #     process_and_save_members(changes_data)
         if table == "7903_wc_order_stats":
             process_and_save_orders(changes_data)
         if table == "7903_wc_order_product_lookup":
