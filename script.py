@@ -467,14 +467,11 @@ def process_and_save_product(changes):
             }
         )
     )
-    df["Day_of_Week__c"] = (
-        df["Product_Identifier__c"]
-        .apply(
+    df["Day_of_Week__c"] = df["Product_Identifier__c"].apply(
             lambda x: day_of_week.loc[day_of_week.object_id == x, "cat"].iloc[0]
             if x in day_of_week.object_id.values
             else None
-        )
-        .apply(
+        ).apply(
             {
                 31: "Monday",
                 32: "Tuesday",
@@ -484,7 +481,6 @@ def process_and_save_product(changes):
                 48: "Saturday",
             }
         )
-    )
 
     df = df.fillna("")
     df = df.map(convert)
