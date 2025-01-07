@@ -427,7 +427,7 @@ def process_and_save_product(changes):
     df.rename(
         columns={
             "ID": "Product_Identifier__c",
-            "post_title": "Product_Name__c",
+            "post_title": "Name",
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
         },
