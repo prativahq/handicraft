@@ -435,17 +435,18 @@ def process_and_save_product(changes):
         errors="ignore",
     )
     df["Did_Not_Run__c"] = False
-    df["Post_Date__c"] = pd.to_datetime(df["post_date"]).dt.strftime("%Y-%m-%d")
+    post_date = pd.to_datetime(df["post_date"])
+    df["Post_Date__c"] = post_date.dt.strftime("%Y-%m-%d")
     df.drop(columns=["post_date"], inplace=True)
-    df["Time__c"] = pd.to_datetime(df["Post_Date__c"]).dt.strftime("%H:%M:%S")
-    df["Trimester__c"] = df["Post_Date__c"].dt.month.map(
+    df["Time__c"] = post_date.dt.strftime("%H:%M:%S")
+    df["Trimester__c"] = post_date.dt.month.map(
         lambda x: "Spring"
         if x in [4, 5, 6, 7]
         else "Fall"
         if x in [8, 9, 10, 11]
         else "Winter"
     )
-    df["Year__c"] = df["Post_Date__c"].dt.year
+    df["Year__c"] = post_date.dt.year
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Category__c"] = (
         df["ID"]
