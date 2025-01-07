@@ -449,7 +449,7 @@ def process_and_save_product(changes):
     df["Year__c"] = post_date.dt.year
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Category__c"] = (
-        df["ID"]
+        df["Product_Identifier__c"]
         .apply(
             lambda x: categories.loc[categories.object_id == x, "cat"].iloc[0]
             if x in categories.object_id.values
@@ -468,7 +468,7 @@ def process_and_save_product(changes):
         )
     )
     df["Day_of_Week__c"] = (
-        df["ID"]
+        df["Product_Identifier__c"]
         .apply(
             lambda x: day_of_week.loc[day_of_week.object_id == x, "cat"].iloc[0]
             if x in day_of_week.object_id.values
