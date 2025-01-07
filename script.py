@@ -449,13 +449,10 @@ def process_and_save_product(changes):
     df["Year__c"] = post_date.dt.year
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Category__c"] = (
-        df["Product_Identifier__c"]
-        .apply(
-            lambda x: categories.loc[categories.object_id == x, "cat"].iloc[0]
-            if x in categories.object_id.values
-            else None
+        df["Product_Identifier__c"].map(
+            categories.set_index("object_id")["cat"].to_dict()
         )
-        .apply(
+        .map(
             {
                 23: "Classes",
                 192: "Clubhouse Only",
@@ -467,11 +464,9 @@ def process_and_save_product(changes):
             }
         )
     )
-    df["Day_of_Week__c"] = df["Product_Identifier__c"].apply(
-            lambda x: day_of_week.loc[day_of_week.object_id == x, "cat"].iloc[0]
-            if x in day_of_week.object_id.values
-            else None
-        ).apply(
+    df["Day_of_Week__c"] = df["Product_Identifier__c"].map(
+            day_of_week.set_index("object_id")["cat"].to_dict()
+        ).map(
             {
                 31: "Monday",
                 32: "Tuesday",
