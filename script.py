@@ -155,7 +155,7 @@ def upload_data(df, table):
         #     logging.info("Failed to upload data")
         #     break
         # cnt += 1
-        if res["state"] == "InProgress":
+        if res["state"] == "InProgress" or res["state"] == "UploadComplete":
             time.sleep(10)
             continue
 
