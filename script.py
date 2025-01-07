@@ -223,8 +223,7 @@ def process_and_save_members(changes):
     # df["Membership_Plan__c"] = "Active Member"
     
     df = df.map(convert)
-    logging.info(df)
-    # upload_data(df, "HC_Member__c")
+    upload_data(df, "HC_Member__c")
 
 
 def process_and_save_orders(changes):
