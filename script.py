@@ -192,7 +192,7 @@ def process_and_save_members(changes):
     logging.info(df)
     
 
-    df = df[["first_name", "last_name", "email", "city", "customer_id", "phone", "state", "postcode", "customer_id", "membership_plan"]]
+    df = df[["first_name", "last_name", "email", "city", "customer_id", "phone", "state", "postcode", "membership_plan"]]
     df.rename(columns={"customer_id": "Member_ID__c", 
                     "first_name": "First_Name__c", 
                     "last_name": "Last_Name__c", 
