@@ -180,7 +180,7 @@ def upload_data(df, table):
         )
         result["success"] = res.text
         logging.info(result)
-        # send_email(result)
+        send_email(result)
         return result
 
 
@@ -296,6 +296,8 @@ def process_and_save_members(changes):
     df = df.map(convert)
     upload_data(df, "HC_Member__c")
 
+    update_processed_flags(changes)
+
 
 def process_and_save_orders(changes):
     if changes is None or len(changes) == 0:
@@ -356,6 +358,8 @@ def process_and_save_orders(changes):
 
     upload_data(df, "HC_Order__c")
 
+    update_processed_flags(changes)
+
 
 def process_and_save_order_items(changes):
     if changes is None or len(changes) == 0:
@@ -384,6 +388,8 @@ def process_and_save_order_items(changes):
     df = df.map(convert)
 
     upload_data(df, "HC_Order_Item__c")
+
+    update_processed_flags(changes)
 
 
 def process_and_save_product(changes):
@@ -481,6 +487,8 @@ def process_and_save_product(changes):
     df = df.map(convert)
     upload_data(df, "HC_Product__c")
 
+    update_processed_flags(changes)
+
 
 def process_and_save_teachers(changes):
     if changes is None or len(changes) == 0:
@@ -525,12 +533,7 @@ def update_processed_flags(changes):
         mydb.commit()
         mydb.close()
         logging.info(f"{mycursor.rowcount} record(s) updated")
-        mydb.commit()
-        mydb.close()
-        logging.info(f"{mycursor.rowcount} record(s) updated")
 
-    except mysql.connector.Error as err:
-        logging.info(f"Database error while updating processed flags: {err}")
     except mysql.connector.Error as err:
         logging.info(f"Database error while updating processed flags: {err}")
 
