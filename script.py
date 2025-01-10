@@ -525,7 +525,12 @@ def update_processed_flags(changes):
         mydb.commit()
         mydb.close()
         logging.info(f"{mycursor.rowcount} record(s) updated")
+        mydb.commit()
+        mydb.close()
+        logging.info(f"{mycursor.rowcount} record(s) updated")
 
+    except mysql.connector.Error as err:
+        logging.info(f"Database error while updating processed flags: {err}")
     except mysql.connector.Error as err:
         logging.info(f"Database error while updating processed flags: {err}")
 
