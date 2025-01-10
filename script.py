@@ -507,25 +507,27 @@ def process_and_save_teachers(changes):
 
     upload_data(df, "HC_Teacher__c")
 
+    update_processed_flags(changes)
 
-# def update_processed_flags(changes):
-#     try:
-#         mydb = mysql.connector.connect(
-#             host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-#         )
-#         mycursor = mydb.cursor()
 
-#         for change in changes:
-#             update_query = "UPDATE table_changes SET processed = 1 WHERE id = %s AND change_time = %s"
-#             val = (change["id"], change["change_time"])
-#             mycursor.execute(update_query, val)
+def update_processed_flags(changes):
+    try:
+        mydb = mysql.connector.connect(
+            host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        mycursor = mydb.cursor()
 
-#         mydb.commit()
-#         mydb.close()
-#         logging.info(f"{mycursor.rowcount} record(s) updated")
+        for change in changes:
+            update_query = "UPDATE trigger_table SET is_processed = 1 WHERE id = %s AND table_name = %s"
+            val = (change["id"], change["table_name"])
+            mycursor.execute(update_query, val)
 
-#     except mysql.connector.Error as err:
-#         logging.info(f"Database error while updating processed flags: {err}")
+        mydb.commit()
+        mydb.close()
+        logging.info(f"{mycursor.rowcount} record(s) updated")
+
+    except mysql.connector.Error as err:
+        logging.info(f"Database error while updating processed flags: {err}")
 
 
 if __name__ == "__main__":
@@ -534,8 +536,8 @@ if __name__ == "__main__":
         if changes_data is None:
             continue
         logging.info(f"Processing {table}")
-        # if table == "7903_wc_customer_lookup":
-        #     process_and_save_members(changes_data)
+        if table == "7903_wc_customer_lookup":
+            process_and_save_members(changes_data)
         if table == "7903_wc_order_stats":
             process_and_save_orders(changes_data)
         if table == "7903_wc_order_product_lookup":
