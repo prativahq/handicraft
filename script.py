@@ -508,24 +508,24 @@ def process_and_save_teachers(changes):
     upload_data(df, "HC_Teacher__c")
 
 
-# def update_processed_flags(changes):
-#     try:
-#         mydb = mysql.connector.connect(
-#             host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-#         )
-#         mycursor = mydb.cursor()
+def update_processed_flags(changes):
+    try:
+        mydb = mysql.connector.connect(
+            host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        mycursor = mydb.cursor()
 
-#         for change in changes:
-#             update_query = "UPDATE table_changes SET processed = 1 WHERE id = %s AND change_time = %s"
-#             val = (change["id"], change["change_time"])
-#             mycursor.execute(update_query, val)
+        for change in changes:
+            update_query = "UPDATE table_changes SET processed = 1 WHERE id = %s AND change_time = %s"
+            val = (change["id"], change["change_time"])
+            mycursor.execute(update_query, val)
 
-#         mydb.commit()
-#         mydb.close()
-#         logging.info(f"{mycursor.rowcount} record(s) updated")
+        mydb.commit()
+        mydb.close()
+        logging.info(f"{mycursor.rowcount} record(s) updated")
 
-#     except mysql.connector.Error as err:
-#         logging.info(f"Database error while updating processed flags: {err}")
+    except mysql.connector.Error as err:
+        logging.info(f"Database error while updating processed flags: {err}")
 
 
 if __name__ == "__main__":
