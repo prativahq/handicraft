@@ -137,7 +137,7 @@ def upload_data(df, table):
     res = res.json()
     logging.info(res["id"])
 
-    time.sleep(10)
+    time.sleep(30)
     id = res["id"]
     # cnt = 0
     while True:
@@ -156,7 +156,7 @@ def upload_data(df, table):
         #     break
         # cnt += 1
         if res["state"] == "InProgress" or res["state"] == "UploadComplete":
-            time.sleep(10)
+            time.sleep(30)
             continue
 
         if res["numberRecordsFailed"] > 0:
