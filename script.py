@@ -7,9 +7,10 @@ import os, sys
 import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
+import base64
 import logging
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Email, Content, Mail, To
+from sendgrid.helpers.mail import Email, Content, Mail, To, Attachment,FileContent, FileName, FileType, Disposition, ContentId
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -83,21 +84,39 @@ states = {
 }
 
 
-def send_email(content):
+def send_email(content_data):
     try:
-        emails = [To(email) for email in os.getenv("EMAILS").split(",")]
+        email_list = os.getenv("EMAILS", "").split(",")
+        to_emails = [To(email.strip()) for email in email_list]
         sg = SendGridAPIClient(api_key=SENDGRID_API_KEY)
+        
+        # Create email
         from_email = Email("no-reply@prativa.in")
-        to_email = emails
-        content = Content("text/json", json.dumps(content))
+        html_content = Content("text/html", "<b>HC Notification</b>")
         subject = "HC Notification"
-        mail = Mail(from_email, to_email, subject, content, is_multiple=len(emails) > 1)
 
-        response = sg.client.mail.send.post(request_body=mail.get())
-        logging.info(response)
+        # Setup mail
+        mail = Mail(
+            from_email=from_email,
+            to_emails=to_emails,
+            subject=subject,
+            html_content=html_content
+        )
+        # Add JSON attachment
+        attachment = Attachment()
+        attachment.file_content = FileContent(base64.b64encode(json.dumps(content_data).encode()).decode())
+        attachment.file_type = FileType("application/json")
+        attachment.file_name = FileName("data.json")
+        attachment.disposition = Disposition("attachment")
+        mail.add_attachment(attachment)
+        
+        # Send email
+        response = sg.send(mail)
+        logging.info(f"Email sent successfully✅. Status code: {response.status_code}")
         return response
     except Exception as e:
-        return e
+        logging.error(f"Error sending email❌: {str(e)}")
+        return None
 
 
 def upload_data(df, table):
