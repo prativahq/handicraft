@@ -94,7 +94,7 @@ def send_email(content_data):
         from_email = Email("no-reply@prativa.in")
         html_content = Content("text/html", "<b>HC Notification</b>")
         subject = "HC Notification"
-
+        
         # Setup mail
         mail = Mail(
             from_email=from_email,
