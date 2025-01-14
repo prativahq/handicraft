@@ -1,6 +1,6 @@
 import os
 import requests
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key, find_dotenv
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -10,6 +10,12 @@ load_dotenv()
 
 def get_access_token():
     try:
+        # Load existing environment variables
+        dotenv_path = find_dotenv()
+        if not dotenv_path:
+            raise ValueError("No .env file found")
+        load_dotenv(dotenv_path)
+        
         # Get credentials from environment
         consumer_key = os.getenv("CONSUMER_KEY")
         consumer_secret = os.getenv("CONSUMER_SECRET")
@@ -48,6 +54,11 @@ def get_access_token():
         token_data = response.json()
         access_token = token_data['access_token']
         logger.info("Successfully retrieved access token")
+        
+        # Update existing SALESFORCE_API_KEY in .env file
+        set_key(dotenv_path, 'SALESFORCE_API_KEY', access_token)
+        logger.info("Successfully updated SALESFORCE_API_KEY in .env file")
+
         return access_token
 
     except Exception as e:
