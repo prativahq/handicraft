@@ -443,6 +443,7 @@ def process_and_save_product(changes):
         return
 
     df = pd.DataFrame(results)
+    print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
     logging.info(f"Processing {len(df)} records")
@@ -505,7 +506,7 @@ def process_and_save_product(changes):
     df = df.fillna("")
     df = df.map(convert)
     upload_data(df, "HC_Product__c")
-
+    print("Product uploaded",df)
     update_processed_flags(changes)
 
 
