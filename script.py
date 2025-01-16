@@ -91,7 +91,7 @@ def send_email(content_data):
         sg = SendGridAPIClient(api_key=SENDGRID_API_KEY)
         
         # Create email
-        from_email = Email("no-reply@prativa.in")
+        from_email = Email("noreply@prativa.in")
         html_content = Content("text/html", "<b>HC Notification</b>")
         subject = "HC Notification"
         
