@@ -119,7 +119,7 @@ def send_email(content_data):
         return None
 
 
-def upload_data(df, table):
+def upload_data(df, table, changes):
     result = {}
     result["from_db"] = df.to_dict(orient="records")
     csv = df.to_csv(index=False, header=True)
@@ -199,6 +199,7 @@ def upload_data(df, table):
         )
         result["success"] = res.text
         logging.info(result)
+        update_processed_flags(changes)
         send_email(result)
         return result
 
@@ -313,9 +314,9 @@ def process_and_save_members(changes):
     # df["Membership_Plan__c"] = "Active Member"
 
     df = df.map(convert)
-    upload_data(df, "HC_Member__c")
+    upload_data(df, "HC_Member__c",changes)
 
-    update_processed_flags(changes)
+    # update_processed_flags(changes)
 
 
 def process_and_save_orders(changes):
@@ -375,9 +376,9 @@ def process_and_save_orders(changes):
     df = df.fillna("")
     df = df.map(convert)
 
-    upload_data(df, "HC_Order__c")
+    upload_data(df, "HC_Order__c",changes)
 
-    update_processed_flags(changes)
+    # update_processed_flags(changes)
 
 
 def process_and_save_order_items(changes):
@@ -406,9 +407,9 @@ def process_and_save_order_items(changes):
     df = df.fillna("")
     df = df.map(convert)
 
-    upload_data(df, "HC_Order_Item__c")
+    upload_data(df, "HC_Order_Item__c",changes)
 
-    update_processed_flags(changes)
+    # update_processed_flags(changes)
 
 
 def process_and_save_product(changes):
@@ -505,9 +506,9 @@ def process_and_save_product(changes):
 
     df = df.fillna("")
     df = df.map(convert)
-    upload_data(df, "HC_Product__c")
+    upload_data(df, "HC_Product__c",changes)
     print("Product uploaded",df)
-    update_processed_flags(changes)
+    # update_processed_flags(changes)
 
 
 def process_and_save_teachers(changes):
@@ -533,9 +534,9 @@ def process_and_save_teachers(changes):
     df = df.fillna("")
     df = df.map(convert)
 
-    upload_data(df, "HC_Teacher__c")
+    upload_data(df, "HC_Teacher__c",changes)
 
-    update_processed_flags(changes)
+    # update_processed_flags(changes)
 
 
 def update_processed_flags(changes):
