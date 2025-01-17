@@ -436,13 +436,13 @@ def process_and_save_product(changes):
     # Teacher mapping query with IDs
     teacher_query = """
             SELECT tr.object_id as products, 
-            GROUP_CONCAT(t.name) as teacher,
-            GROUP_CONCAT(t.term_id) as teacher_ids
+            t.term_id as teacher_id
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
             WHERE tr.object_id IN ({})
-            AND tt.parent = 248 GROUP BY tr.object_id
+            AND tt.id NOT IN (23, 192, 256, 27, 111, 42, 64, 31, 32, 37, 34, 40, 48)
+            GROUP BY tr.object_id
     """.format(', '.join(['%s'] * len(ids)))
     
     mydb = mysql.connector.connect(
@@ -482,10 +482,6 @@ def process_and_save_product(changes):
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
     teacher_df = pd.DataFrame(teachers)
-    
-    if not teacher_df.empty:
-        logging.info("Teacher DataFrame:")
-        logging.info(teacher_df.to_dict('records'))
 
     logging.info(f"Processing {len(df)} records")
 
@@ -504,14 +500,10 @@ def process_and_save_product(changes):
     
     if not teacher_df.empty:
         df["Teacher__c"] = df["Product_Identifier__c"].map(
-            teacher_df.set_index("products")["teacher"].to_dict()
-        )
-        df["Id__c"] = df["Product_Identifier__c"].map(
-            teacher_df.set_index("products")["teacher_ids"].to_dict()
+            teacher_df.set_index("products")["teacher_id"].to_dict()
         )
     else:
         df["Teacher__c"] = ""
-        df["Id__c"] = ""
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
@@ -557,6 +549,11 @@ def process_and_save_product(changes):
         )
 
     df = df.fillna("")
+    if "Teacher__c" in df.columns:
+        df["Teacher__c"] = df["Teacher__c"].replace("", np.nan)
+        # Convert to integer without decimal places
+        df["Teacher__c"] = df["Teacher__c"].astype(float).astype('Int64').astype(str)
+        df["Teacher__c"] = df["Teacher__c"].replace('nan', '')
     df = df.map(convert)
     
     # Log the DataFrame to see the teacher IDs
