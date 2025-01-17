@@ -483,7 +483,7 @@ def process_and_save_product(changes):
 
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price", "name"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -491,7 +491,6 @@ def process_and_save_product(changes):
             "post_title": "Name",
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
-            "name": "Teacher__c",
         },
         inplace=True,
         errors="ignore",
