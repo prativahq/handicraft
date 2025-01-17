@@ -1,3 +1,4 @@
 .env
 script.log
 access_token.log
+cron_status.log
