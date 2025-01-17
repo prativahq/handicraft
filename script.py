@@ -442,7 +442,7 @@ def process_and_save_product(changes):
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
             WHERE tr.object_id IN ({})
-            AND tt.term_taxonomy_id NOT IN (23, 192, 256, 27, 111, 42, 64, 31, 32, 37, 34, 40, 48)
+            AND tr.term_taxonomy_id NOT IN (23, 192, 256, 27, 111, 42, 64, 31, 32, 37, 34, 40, 48)
             GROUP BY tr.object_id
     """.format(', '.join(['%s'] * len(ids)))
     
