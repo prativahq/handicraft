@@ -1,5 +1,6 @@
 import mysql.connector
 import json
+from decimal import Decimal
 import time
 import requests
 import pandas as pd
@@ -10,7 +11,13 @@ from dotenv import load_dotenv
 import base64
 import logging
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Email, Content, Mail, To, Attachment,FileContent, FileName, FileType, Disposition, ContentId
+from sendgrid.helpers.mail import Email, Content, Mail, To, Attachment,FileContent, FileName, FileType, Disposition
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super().default(obj)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -102,9 +109,13 @@ def send_email(content_data):
             subject=subject,
             html_content=html_content
         )
+        
+        # Convert data to JSON using custom encoder
+        json_data = json.dumps(content_data, cls=DecimalEncoder)
+        
         # Add JSON attachment
         attachment = Attachment()
-        attachment.file_content = FileContent(base64.b64encode(json.dumps(content_data).encode()).decode())
+        attachment.file_content = FileContent(base64.b64encode(json_data.encode()).decode())
         attachment.file_type = FileType("application/json")
         attachment.file_name = FileName("data.json")
         attachment.disposition = Disposition("attachment")
