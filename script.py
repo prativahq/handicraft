@@ -567,7 +567,8 @@ def process_and_save_teachers(changes):
 
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
-
+    logging.info(f"Available columns: {df.columns.tolist()}")
+    
     df = df[["name"]]
     df.rename(columns={"name": "Name"}, inplace=True, errors="ignore")
     df["Also_a_Member__c"] = False
