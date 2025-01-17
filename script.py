@@ -477,12 +477,12 @@ def process_and_save_product(changes):
         return
 
     df = pd.DataFrame(results)
-    logging.info(f"Available columns: {df.columns.tolist()}")
+    # logging.info(f"Available columns: {df.columns.tolist()}")
 
     # print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
-    teachers = pd.DataFrame(teachers)
+    teacher_df = pd.DataFrame(teachers)
 
     logging.info(f"Processing {len(df)} records")
 
@@ -498,12 +498,16 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
-    df["Teacher__c"] = df["Product_Identifier__c"].map(
-        teachers.set_index("products")["teacher"].to_dict()
-    )
-    df["Id__c"] = df["Product_Identifier__c"].map(
-        teachers.set_index("products")["teacher_ids"].to_dict()
-    )
+    if not teacher_df.empty:
+        df["Teacher__c"] = df["Product_Identifier__c"].map(
+        teacher_df.set_index("products")["teacher"].to_dict()
+        )
+        df["Id__c"] = df["Product_Identifier__c"].map(
+        teacher_df.set_index("products")["teacher_ids"].to_dict()
+        )
+    else:
+        df["Teacher__c"] = ""
+        df["Id__c"] = ""
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
