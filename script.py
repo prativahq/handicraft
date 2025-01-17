@@ -436,8 +436,8 @@ def process_and_save_product(changes):
     # Teacher mapping query with IDs
     teacher_query = """
             SELECT tr.object_id as products, 
-            t.term_id as teacher_id,
-            t.name as teacher_name
+            GROUP_CONCAT(t.name) as teacher,
+            GROUP_CONCAT(t.term_id) as teacher_ids
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
@@ -482,7 +482,7 @@ def process_and_save_product(changes):
     # print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
-    teacher_df = pd.DataFrame(teachers)
+    teachers = pd.DataFrame(teachers)
 
     logging.info(f"Processing {len(df)} records")
 
@@ -499,10 +499,10 @@ def process_and_save_product(changes):
         errors="ignore",
     )
     df["Teacher__c"] = df["Product_Identifier__c"].map(
-        teacher_df.set_index("products")["teacher_name"].to_dict()
+        teachers.set_index("products")["teacher"].to_dict()
     )
     df["Id__c"] = df["Product_Identifier__c"].map(
-        teacher_df.set_index("products")["teacher_id"].to_dict()
+        teachers.set_index("products")["teacher_ids"].to_dict()
     )
         
     df["Did_Not_Run__c"] = False
