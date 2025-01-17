@@ -480,7 +480,7 @@ def process_and_save_product(changes):
     # print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
-    teachers = pd.DataFrame(teachers)
+    teacher_df = pd.DataFrame(teachers)
 
     logging.info(f"Processing {len(df)} records")
 
@@ -496,12 +496,18 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
-    df["Teacher__c"] = df["Product_Identifier__c"].map(
-        teachers.set_index("products")["teacher"].to_dict()
-    )
-    df["Id__c"] = df["Product_Identifier__c"].map(
-    teachers.set_index("products")["teacher_ids"].to_dict()
-    )
+    
+    if not teacher_df.empty:
+        df["Teacher__c"] = df["Product_Identifier__c"].map(
+            teacher_df.set_index("products")["teacher"].to_dict()
+        )
+        df["Id__c"] = df["Product_Identifier__c"].map(
+            teacher_df.set_index("products")["teacher_ids"].to_dict()
+        )
+    else:
+        df["Teacher__c"] = ""
+        df["Id__c"] = ""
+        
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
     df["Post_Date__c"] = post_date.dt.strftime("%Y-%m-%d")
@@ -560,7 +566,13 @@ def process_and_save_teachers(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT * FROM 7903_terms WHERE term_id IN (SELECT term_id from 7903_term_taxonomy WHERE term_id  IN ({', '.join(['%s'] * len(ids))}) AND parent = 248)"""
+    query = f"""
+        SELECT t.term_id, t.name 
+        FROM 7903_terms t
+        JOIN 7903_term_taxonomy tt ON t.term_id = tt.term_id
+        WHERE tt.parent = 248 
+        AND t.term_id IN ({', '.join(['%s'] * len(ids))})
+    """
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
@@ -573,7 +585,7 @@ def process_and_save_teachers(changes):
     logging.info(f"Processing {len(df)} records")
     logging.info(f"Available columns: {df.columns.tolist()}")
     
-    df = df[["name","id"]]
+    df = df[["name","term_id"]]
     df.rename(columns={"name": "Name","term_id":"Id__c"}, inplace=True, errors="ignore")
     df["Also_a_Member__c"] = False
 
