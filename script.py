@@ -436,14 +436,13 @@ def process_and_save_product(changes):
     # Teacher mapping query with IDs
     teacher_query = """
             SELECT tr.object_id as products, 
-            t.name as teacher,
-            t.term_id as teacher_id
+            GROUP_CONCAT(t.name) as teacher,
+            GROUP_CONCAT(t.term_id) as teacher_ids
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
             WHERE tr.object_id IN ({})
-            AND tr.term_taxonomy_id NOT IN (23, 192, 256, 27, 111, 42, 64, 31, 32, 37, 34, 40, 48)
-            GROUP BY tr.object_id
+            AND tt.parent = 248 GROUP BY tr.object_id
     """.format(', '.join(['%s'] * len(ids)))
     
     mydb = mysql.connector.connect(
