@@ -436,7 +436,8 @@ def process_and_save_product(changes):
     # Teacher mapping query with IDs
     teacher_query = """
             SELECT tr.object_id as products, 
-            t.term_id as teacher_id
+            t.term_id as teacher_id,
+            t.name as teacher_name
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
@@ -497,13 +498,12 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
-    
-    if not teacher_df.empty:
-        df["Teacher__c"] = df["Product_Identifier__c"].map(
-            teacher_df.set_index("products")["teacher_id"].to_dict()
-        )
-    else:
-        df["Teacher__c"] = ""
+    df["Teacher__c"] = df["Product_Identifier__c"].map(
+        teacher_df.set_index("products")["teacher_name"].to_dict()
+    )
+    df["Id__c"] = df["Product_Identifier__c"].map(
+        teacher_df.set_index("products")["teacher_id"].to_dict()
+    )
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
@@ -549,11 +549,6 @@ def process_and_save_product(changes):
         )
 
     df = df.fillna("")
-    if "Teacher__c" in df.columns:
-        df["Teacher__c"] = df["Teacher__c"].replace("", np.nan)
-        # Convert to integer without decimal places
-        df["Teacher__c"] = df["Teacher__c"].astype(float).astype('Int64').astype(str)
-        df["Teacher__c"] = df["Teacher__c"].replace('nan', '')
     df = df.map(convert)
     
     # Log the DataFrame to see the teacher IDs
