@@ -474,6 +474,8 @@ def process_and_save_product(changes):
         return
 
     df = pd.DataFrame(results)
+    logging.info(f"Available columns: {df.columns.tolist()}")
+
     # print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
@@ -481,7 +483,7 @@ def process_and_save_product(changes):
 
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price", "name"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -489,6 +491,7 @@ def process_and_save_product(changes):
             "post_title": "Name",
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
+            "name": "Teacher__c",
         },
         inplace=True,
         errors="ignore",
