@@ -432,16 +432,6 @@ def process_and_save_product(changes):
             LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
             WHERE p.post_type = 'product'
             AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
-            
-    # Teacher mapping query with IDs
-    teacher_query = """
-        SELECT tr.object_id as product_id, GROUP_CONCAT(t.name) as teachers
-        FROM 7903_term_relationships tr
-        JOIN 7903_terms t ON tr.term_taxonomy_id = t.term_id
-        JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_id
-        WHERE tr.object_id IN ({}) AND tt.parent = 248
-        AND tr.term_taxonomy_id NOT IN (23, 192, 256, 27, 111, 42, 64, 31, 32, 37, 34, 40, 48)
-    GROUP BY tr.object_id""".format(', '.join(['%s'] * len(ids)))
     
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -460,14 +450,6 @@ def process_and_save_product(changes):
     )
     day_of_week = mycursor.fetchall()
     
-    # Execute teacher query
-    mycursor.execute(teacher_query, ids)
-    teachers = mycursor.fetchall()
-
-    # Log teacher results for debugging
-    logging.info("Teacher mapping results:")
-    logging.info(teachers)
-    
     mydb.close()  # Close the connection as soon as we're done
 
     if results is None or len(results) == 0:
@@ -477,7 +459,6 @@ def process_and_save_product(changes):
     # print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
-    teachers_df = pd.DataFrame(teachers)
 
     logging.info(f"Processing {len(df)} records")
 
@@ -493,13 +474,7 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
-    
-    # Add teacher IDs if available
-    if not teachers_df.empty:
-        teachers_dict = teachers_df.set_index('product_id')['teachers'].to_dict()
-        df['Teacher__c'] = df['Product_Identifier__c'].map(teachers_dict)
         
-    
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
     df["Post_Date__c"] = post_date.dt.strftime("%Y-%m-%d")
@@ -545,10 +520,6 @@ def process_and_save_product(changes):
 
     df = df.fillna("")
     df = df.map(convert)
-    
-    # Log the DataFrame to see the teacher IDs
-    logging.info("DataFrame with teachers:")
-    logging.info(df[['Product_Identifier__c', 'Teacher__c']])
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
@@ -558,7 +529,13 @@ def process_and_save_teachers(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT * FROM 7903_terms WHERE term_id IN (SELECT term_id from 7903_term_taxonomy WHERE term_id  IN ({', '.join(['%s'] * len(ids))}) AND parent = 248)"""
+    query = """SELECT tr.object_id as Product_Identifier__c, GROUP_CONCAT(t.name) as Teacher__c FROM 7903_term_relationships tr 
+    JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+    JOIN 7903_terms t ON tt.term_id = t.term_id
+    WHERE tr.object_id IN ({})
+    AND tt.parent = 248
+    GROUP BY tr.object_id
+    """.format(', '.join(['%s'] * len(ids)))
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
@@ -566,10 +543,16 @@ def process_and_save_teachers(changes):
     mycursor.execute(query, ids)
     results = mycursor.fetchall()
     mydb.close()  # Close the connection as soon as we're done
+    
+    if not results:
+        return
 
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
-
+    logging.info(f"Teacher mapping results:")
+    logging.info("Value of df",results)
+    logging.info(f"DataFrame with teachers:")
+    logging.info(df)
     df = df[["name"]]
     df.rename(columns={"name": "Name"}, inplace=True, errors="ignore")
     df["Also_a_Member__c"] = False
@@ -577,7 +560,7 @@ def process_and_save_teachers(changes):
     df = df.fillna("")
     df = df.map(convert)
 
-    upload_data(df, "HC_Teacher__c",changes)
+    upload_data(df, "Teacher__c",changes)
 
     # update_processed_flags(changes)
 
