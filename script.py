@@ -435,11 +435,12 @@ def process_and_save_product(changes):
             
     # Teacher mapping query with IDs
     teacher_query = """
-            SELECT tr.object_id as products, GROUP_CONCAT(t.name) as teacher FROM 7903_term_relationships tr 
+            SELECT tr.object_id as products, GROUP_CONCAT(t.name) as teacher,
+            GROUP_CONCAT(t.term_id) as teacher_ids
+            FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
             WHERE tr.object_id IN ({})
-            AND tt.parent = 248
             AND tr.term_taxonomy_id NOT IN (23, 192, 256, 27, 111, 42, 64, 31, 32, 37, 34, 40, 48)
             GROUP BY tr.object_id""".format(', '.join(['%s'] * len(ids)))
     
@@ -498,6 +499,9 @@ def process_and_save_product(changes):
     df["Teacher__c"] = df["Product_Identifier__c"].map(
         teachers.set_index("products")["teacher"].to_dict()
     )
+    df["Id__c"] = df["Product_Identifier__c"].map(
+    teachers.set_index("products")["teacher_ids"].to_dict()
+    )
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
     df["Post_Date__c"] = post_date.dt.strftime("%Y-%m-%d")
@@ -546,7 +550,7 @@ def process_and_save_product(changes):
     
     # Log the DataFrame to see the teacher IDs
     logging.info("DataFrame with teachers:")
-    logging.info(df[['Product_Identifier__c', 'Teacher__c']])
+    logging.info(df[['Product_Identifier__c', 'Teacher__c','Id__c']])
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
