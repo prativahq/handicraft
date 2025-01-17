@@ -569,8 +569,8 @@ def process_and_save_teachers(changes):
     logging.info(f"Processing {len(df)} records")
     logging.info(f"Available columns: {df.columns.tolist()}")
     
-    df = df[["name"]]
-    df.rename(columns={"name": "Name"}, inplace=True, errors="ignore")
+    df = df[["name","id"]]
+    df.rename(columns={"name": "Name","term_id":"Id__c"}, inplace=True, errors="ignore")
     df["Also_a_Member__c"] = False
 
     df = df.fillna("")
