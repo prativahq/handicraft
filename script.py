@@ -502,7 +502,7 @@ def process_and_save_product(changes):
         teacher_df.set_index("products")["teacher"].to_dict()
         )
         df["Id__c"] = df["Product_Identifier__c"].map(
-        teacher_df.set_index("products")["teacher_id"].to_dict()
+        teacher_df.set_index("products")["teacher_ids"].to_dict()
         )
     else:
         df["Teacher__c"] = ""
