@@ -436,8 +436,8 @@ def process_and_save_product(changes):
     # Teacher mapping query with IDs
     teacher_query = """
             SELECT tr.object_id as products, 
-            GROUP_CONCAT(t.name) as teacher,
-            GROUP_CONCAT(t.term_id) as teacher_ids
+            t.name as teacher,
+            t.term_id as teacher_id
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
@@ -503,7 +503,7 @@ def process_and_save_product(changes):
         teacher_df.set_index("products")["teacher"].to_dict()
         )
         df["Id__c"] = df["Product_Identifier__c"].map(
-        teacher_df.set_index("products")["teacher_ids"].to_dict()
+        teacher_df.set_index("products")["teacher_id"].to_dict()
         )
     else:
         df["Teacher__c"] = ""
