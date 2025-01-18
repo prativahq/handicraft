@@ -101,7 +101,21 @@ def send_email(content_data):
         
         # Create email
         from_email = Email("noreply@prativa.in")
-        html_content = Content("text/html", "<b>HC Notification</b>")
+        html_content = f"""
+            <html>
+            <body>
+                <h3>HC Notification</h3>
+                <p>Dear Team,</p>
+                <p>The data processing completed successfully. Summary:</p>
+                <ul>
+                    <li><b>Total Records Processed:</b> {len(content_data.get('success', '').splitlines())}</li>
+                    <li><b>Failed Records:</b> {len(content_data.get('failed', '').splitlines())}</li>
+                </ul>
+                <p>Best Regards,</p>
+                <p>Your Automation Script</p>
+            </body>
+            </html>
+            """
         subject = "HC Notification"
         
         # Setup mail
@@ -440,7 +454,8 @@ def process_and_save_product(changes):
     # GROUP_CONCAT(t.term_id) as teacher_ids
     teacher_query = """
             SELECT tr.object_id as products, 
-            t.term_id as teacher_id, t.name as teacher_name
+            t.name as teacher_name, 
+            t.term_id as teacher_id
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
@@ -479,16 +494,13 @@ def process_and_save_product(changes):
         return
 
     df = pd.DataFrame(results)
-    # logging.info(f"Available columns: {df.columns.tolist()}")
 
-    # print("Product fetched",df)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
     teacher_df = pd.DataFrame(teachers)
     
     logging.info("Teacher DataFrame:")
     logging.info(teacher_df.to_dict('records'))
-
     logging.info(f"Processing {len(df)} records")
 
     df = df[["ID", "post_title", "post_date", "guid", "max_price"]]
@@ -504,18 +516,12 @@ def process_and_save_product(changes):
         errors="ignore",
     )
     
-    if teacher_df.empty:
-        df['Teacher__c'] = ''
-    else:
-        wp_teacher_ids = [f"'{tid}'" for tid in teacher_df['teacher_id'].unique()]
-        sf_teacher_mapping = get_teacher_sf_ids(wp_teacher_ids)
+    if not teacher_df.empty:
+    # Create mapping of product ID to teacher term_id
+        teacher_mapping = dict(zip(teacher_df['products'], teacher_df['teacher_id']))
         
-        product_teacher_map = dict(zip(teacher_df['products'], 
-        teacher_df['teacher_id'].astype(str).map(sf_teacher_mapping)))
-        df['Teacher__c'] = df['Product_Identifier__c'].map(product_teacher_map)
-    
-    logging.info("Teacher mapping complete")
-    logging.info(df[["Product_Identifier__c", "Teacher__c"]].to_dict('records'))
+        # Map teacher term_id to products
+        df['Id__c'] = df['Product_Identifier__c'].map(teacher_mapping)
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
@@ -561,14 +567,11 @@ def process_and_save_product(changes):
         )
 
     df = df.fillna("")
-    if "Teacher__c" in df.columns:
-        df["Teacher__c"] = df["Teacher__c"].replace("", np.nan)
-        df["Teacher__c"] = df["Teacher__c"].fillna('')  # Replace NaN with empty string
     df = df.map(convert)
     
     # Log the DataFrame to see the teacher IDs
     logging.info("DataFrame with teachers:")
-    logging.info(df[["Product_Identifier__c", "Teacher__c"]])
+    logging.info(df[["Product_Identifier__c", "ID__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
@@ -627,28 +630,6 @@ def update_processed_flags(changes):
 
     except mysql.connector.Error as err:
         logging.info(f"Database error while updating processed flags: {err}")
-        
-def get_teacher_sf_ids(wp_teacher_ids):
-    if not wp_teacher_ids:
-        return {}
-        
-    url = f"{SALESFORCE_URL}/query"
-    headers = {
-        "Authorization": f"Bearer {SALESFORCE_API_KEY}",
-        "Accept": "application/json"
-    }
-    
-    soql = f"SELECT Id, Id__c FROM HC_Teacher__c WHERE Id__c IN ({','.join(wp_teacher_ids)})"
-    params = {'q': soql}
-    
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        results = response.json()
-        return {str(record['Id__c']): record['Id'] for record in results.get('records', [])}
-    except Exception as e:
-        logging.error(f"Salesforce query error: {str(e)}")
-        return {}
 
 
 if __name__ == "__main__":
