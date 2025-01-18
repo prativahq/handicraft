@@ -454,7 +454,6 @@ def process_and_save_product(changes):
     # GROUP_CONCAT(t.term_id) as teacher_ids
     teacher_query = """
             SELECT tr.object_id as products, 
-            t.name as teacher_name, 
             t.term_id as teacher_id
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
@@ -520,8 +519,12 @@ def process_and_save_product(changes):
     # Create mapping of product ID to teacher term_id
         teacher_mapping = dict(zip(teacher_df['products'], teacher_df['teacher_id']))
         
-        # Map teacher term_id to products
+        # Map teacher term_id to products using Id__c (Salesforce field name)
         df['Id__c'] = df['Product_Identifier__c'].map(teacher_mapping)
+        
+        # Log the mapping
+        logging.info("Product-Teacher mapping:")
+        logging.info(df[["Product_Identifier__c", "Id__c"]].to_dict('records'))
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
