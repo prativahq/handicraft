@@ -502,11 +502,21 @@ def process_and_save_product(changes):
         errors="ignore",
     )
     if not teacher_df.empty:
-        df["Teacher__c"] = df["Product_Identifier__c"].map(
-            teacher_df.set_index("products")["teacher_id"].to_dict()
-        )
-    else:
-        df["Teacher__c"] = ""
+    # Get unique teacher IDs
+        teacher_ids = teacher_df['teacher_id'].unique()
+        logging.info(f"WordPress teacher IDs: {teacher_ids}")
+    
+    # Get Salesforce ID mapping
+    teacher_sf_ids = get_teacher_sf_ids([str(tid) for tid in teacher_ids])
+    logging.info(f"Salesforce ID mapping: {teacher_sf_ids}")
+    
+    # Map WordPress term_id to Salesforce ID
+    df["Teacher__c"] = df["Product_Identifier__c"].map(
+        teacher_df.set_index("products")["teacher_id"].to_dict()
+    ).map(lambda x: teacher_sf_ids.get(str(x), '') if pd.notna(x) else '')
+    
+    logging.info("Teacher mapping complete")
+    logging.info(df[["Product_Identifier__c", "Teacher__c"]].to_dict('records'))
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
@@ -554,9 +564,7 @@ def process_and_save_product(changes):
     df = df.fillna("")
     if "Teacher__c" in df.columns:
         df["Teacher__c"] = df["Teacher__c"].replace("", np.nan)
-        # Convert to integer without decimal places
-        df["Teacher__c"] = df["Teacher__c"].astype(float).astype('Int64').astype(str)
-        df["Teacher__c"] = df["Teacher__c"].replace('nan', '')
+        df["Teacher__c"] = df["Teacher__c"].fillna('')  # Replace NaN with empty string
     df = df.map(convert)
     
     # Log the DataFrame to see the teacher IDs
@@ -620,6 +628,27 @@ def update_processed_flags(changes):
 
     except mysql.connector.Error as err:
         logging.info(f"Database error while updating processed flags: {err}")
+        
+def get_teacher_sf_ids(teacher_ids):
+    headers = {
+        "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+        "Accept": "application/json"
+    }
+    
+    # Query Salesforce to get the mapping between Id__c and Salesforce ID
+    query = f"SELECT Id, Id__c FROM HC_Teacher__c WHERE Id__c IN ({','.join(teacher_ids)})"
+    response = requests.get(
+        f"{SALESFORCE_URI}/query?q={query}",
+        headers=headers
+    )
+    
+    if response.status_code == 200:
+        results = response.json()['records']
+        # Create mapping of Id__c to Salesforce Id
+        return {str(record['Id__c']): record['Id'] for record in results}
+    else:
+        logging.error(f"Failed to fetch teacher IDs from Salesforce: {response.text}")
+    return {}
 
 
 if __name__ == "__main__":
