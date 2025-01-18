@@ -8,6 +8,7 @@ import os, sys
 import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
+from io import StringIO
 import base64
 import logging
 from sendgrid import SendGridAPIClient
@@ -632,23 +633,64 @@ def update_processed_flags(changes):
 def get_teacher_sf_ids(teacher_ids):
     headers = {
         "Authorization": f"Bearer {SALESFORCE_API_KEY}",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "Content-Type": "application/json"
     }
     
-    # Query Salesforce to get the mapping between Id__c and Salesforce ID
-    query = f"SELECT Id, Id__c FROM HC_Teacher__c WHERE Id__c IN ({','.join(teacher_ids)})"
-    response = requests.get(
-        f"{SALESFORCE_URI}/query?q={query}",
-        headers=headers
-    )
+    # Convert list to comma-separated string with quotes for string values
+    id_string = ','.join(f"'{id}'" for id in teacher_ids)
     
-    if response.status_code == 200:
-        results = response.json()['records']
-        # Create mapping of Id__c to Salesforce Id
-        return {str(record['Id__c']): record['Id'] for record in results}
-    else:
-        logging.error(f"Failed to fetch teacher IDs from Salesforce: {response.text}")
-    return {}
+    # SOQL query
+    query = f"SELECT Id, Id__c FROM HC_Teacher__c WHERE Id__c IN ({id_string})"
+    
+    try:
+        # Create query job
+        job_data = {
+            "operation": "query",
+            "query": query,
+            "contentType": "CSV"
+        }
+        create_job_response = requests.post(
+            SALESFORCE_URI,
+            headers=headers,
+            json=job_data
+        )
+        create_job_response.raise_for_status()
+        job_id = create_job_response.json().get('id')
+        
+        # Poll job status
+        while True:
+            status_response = requests.get(
+                f"{SALESFORCE_URI}/{job_id}",
+                headers=headers
+            )
+            status_response.raise_for_status()
+            status = status_response.json()
+            
+            if status['state'] in ['JobComplete', 'Failed', 'Aborted']:
+                break
+                
+            time.sleep(10)
+        
+        # Handle results
+        if status['state'] == 'JobComplete':
+            results_response = requests.get(
+                f"{SALESFORCE_URI}/{job_id}/results",
+                headers=headers
+            )
+            results_response.raise_for_status()
+            results = results_response.text
+            
+            # Parse CSV results
+            df = pd.read_csv(StringIO(results))
+            return dict(zip(df['Id__c'].astype(str), df['Id']))
+        else:
+            logging.error(f"Job failed with state: {status['state']}")
+            return {}
+        
+    except Exception as e:
+        logging.error(f"Failed to fetch teacher IDs from Salesforce: {str(e)}")
+        return {}
 
 
 if __name__ == "__main__":
