@@ -502,19 +502,16 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
-    # Get WordPress teacher IDs
-    if not teacher_df.empty:
-        wp_teacher_ids = teacher_df['teacher_id'].unique().tolist()
-        # Get Salesforce teacher IDs mapping
-        sf_teacher_mapping = get_teacher_sf_ids([str(tid) for tid in wp_teacher_ids])
+    
+    if teacher_df.empty:
+        df['Teacher__c'] = ''
+    else:
+        wp_teacher_ids = [f"'{tid}'" for tid in teacher_df['teacher_id'].unique()]
+        sf_teacher_mapping = get_teacher_sf_ids(wp_teacher_ids)
         
-        # Map WordPress teacher IDs to Salesforce IDs
-        teacher_df['sf_teacher_id'] = teacher_df['teacher_id'].astype(str).map(sf_teacher_mapping)
-        
-        # Map Salesforce teacher IDs to products
-        df['Teacher__c'] = df['Product_Identifier__c'].map(
-            teacher_df.set_index('product_id')['sf_teacher_id'].to_dict()
-        )
+        product_teacher_map = dict(zip(teacher_df['products'], 
+        teacher_df['teacher_id'].astype(str).map(sf_teacher_mapping)))
+        df['Teacher__c'] = df['Product_Identifier__c'].map(product_teacher_map)
     
     logging.info("Teacher mapping complete")
     logging.info(df[["Product_Identifier__c", "Teacher__c"]].to_dict('records'))
@@ -630,66 +627,26 @@ def update_processed_flags(changes):
     except mysql.connector.Error as err:
         logging.info(f"Database error while updating processed flags: {err}")
         
-def get_teacher_sf_ids(teacher_ids):
+def get_teacher_sf_ids(wp_teacher_ids):
+    if not wp_teacher_ids:
+        return {}
+        
+    url = f"{SALESFORCE_URI}/query"
     headers = {
         "Authorization": f"Bearer {SALESFORCE_API_KEY}",
-        "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Accept": "application/json"
     }
     
-    # Convert list to comma-separated string with quotes for string values
-    id_string = ','.join(f"'{id}'" for id in teacher_ids)
-    
-    # SOQL query
-    query = f"SELECT Id, Id__c FROM HC_Teacher__c WHERE Id__c IN ({id_string})"
+    soql = f"SELECT Id, Id__c FROM HC_Teacher__c WHERE Id__c IN ({','.join(wp_teacher_ids)})"
+    params = {'q': soql}
     
     try:
-        # Create query job
-        job_data = {
-            "operation": "query",
-            "query": query,
-            "contentType": "CSV"
-        }
-        create_job_response = requests.post(
-            SALESFORCE_URI,
-            headers=headers,
-            json=job_data
-        )
-        create_job_response.raise_for_status()
-        job_id = create_job_response.json().get('id')
-        
-        # Poll job status
-        while True:
-            status_response = requests.get(
-                f"{SALESFORCE_URI}/{job_id}",
-                headers=headers
-            )
-            status_response.raise_for_status()
-            status = status_response.json()
-            
-            if status['state'] in ['JobComplete', 'Failed', 'Aborted']:
-                break
-                
-            time.sleep(10)
-        
-        # Handle results
-        if status['state'] == 'JobComplete':
-            results_response = requests.get(
-                f"{SALESFORCE_URI}/{job_id}/results",
-                headers=headers
-            )
-            results_response.raise_for_status()
-            results = results_response.text
-            
-            # Parse CSV results
-            df = pd.read_csv(StringIO(results))
-            return dict(zip(df['Id__c'].astype(str), df['Id']))
-        else:
-            logging.error(f"Job failed with state: {status['state']}")
-            return {}
-        
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        results = response.json()
+        return {str(record['Id__c']): record['Id'] for record in results.get('records', [])}
     except Exception as e:
-        logging.error(f"Failed to fetch teacher IDs from Salesforce: {str(e)}")
+        logging.error(f"Salesforce query error: {str(e)}")
         return {}
 
 
