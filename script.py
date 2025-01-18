@@ -439,7 +439,7 @@ def process_and_save_product(changes):
     # GROUP_CONCAT(t.term_id) as teacher_ids
     teacher_query = """
             SELECT tr.object_id as products, 
-            t.term_id as teacher_id
+            t.term_id as teacher_id, t.name as teacher_name
             FROM 7903_term_relationships tr 
             JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
             JOIN 7903_terms t ON tt.term_id = t.term_id
@@ -502,19 +502,19 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
+    # Get WordPress teacher IDs
     if not teacher_df.empty:
-    # Get unique teacher IDs
-        teacher_ids = teacher_df['teacher_id'].unique()
-        logging.info(f"WordPress teacher IDs: {teacher_ids}")
-    
-    # Get Salesforce ID mapping
-    teacher_sf_ids = get_teacher_sf_ids([str(tid) for tid in teacher_ids])
-    logging.info(f"Salesforce ID mapping: {teacher_sf_ids}")
-    
-    # Map WordPress term_id to Salesforce ID
-    df["Teacher__c"] = df["Product_Identifier__c"].map(
-        teacher_df.set_index("products")["teacher_id"].to_dict()
-    ).map(lambda x: teacher_sf_ids.get(str(x), '') if pd.notna(x) else '')
+        wp_teacher_ids = teacher_df['teacher_id'].unique().tolist()
+        # Get Salesforce teacher IDs mapping
+        sf_teacher_mapping = get_teacher_sf_ids([str(tid) for tid in wp_teacher_ids])
+        
+        # Map WordPress teacher IDs to Salesforce IDs
+        teacher_df['sf_teacher_id'] = teacher_df['teacher_id'].astype(str).map(sf_teacher_mapping)
+        
+        # Map Salesforce teacher IDs to products
+        df['Teacher__c'] = df['Product_Identifier__c'].map(
+            teacher_df.set_index('product_id')['sf_teacher_id'].to_dict()
+        )
     
     logging.info("Teacher mapping complete")
     logging.info(df[["Product_Identifier__c", "Teacher__c"]].to_dict('records'))
