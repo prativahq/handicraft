@@ -44,6 +44,7 @@ DB_NAME = os.getenv("DB_NAME")
 SALESFORCE_URI = os.getenv("SALESFORCE_URI")
 SALESFORCE_API_KEY = os.getenv("SALESFORCE_API_KEY")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+SALESFORCE_URL = os.getenv("SALESFORCE_URL")
 
 states = {
     "AL": "Alabama",
@@ -631,7 +632,7 @@ def get_teacher_sf_ids(wp_teacher_ids):
     if not wp_teacher_ids:
         return {}
         
-    url = f"{SALESFORCE_URI}/query"
+    url = f"{SALESFORCE_URL}/query"
     headers = {
         "Authorization": f"Bearer {SALESFORCE_API_KEY}",
         "Accept": "application/json"
