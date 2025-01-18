@@ -574,7 +574,7 @@ def process_and_save_product(changes):
     
     # Log the DataFrame to see the teacher IDs
     logging.info("DataFrame with teachers:")
-    logging.info(df[["Product_Identifier__c", "ID__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Id__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
