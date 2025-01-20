@@ -351,7 +351,7 @@ def process_and_save_orders(changes):
         return
     ids = [change["id"] for change in changes]
     query = f"""
-        SELECT o.*, c.*, um.*
+        SELECT DISTINCT o.*, c.customer_id, um.meta_value
         FROM 7903_wc_order_stats o
         LEFT JOIN 7903_wc_customer_lookup c ON o.customer_id = c.customer_id
         LEFT JOIN 7903_usermeta um ON c.user_id = um.user_id 
@@ -365,19 +365,21 @@ def process_and_save_orders(changes):
     results = mycursor.fetchall()
     mydb.close()  # Close the connection as soon as we're done
 
+    if not results:
+        logging.info("No results found for the given order IDs")
+        return
+
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
 
-    df = df[
-        [
-            "date_completed",
-            "customer_id",
-            "status",
-            "order_id",
-            "date_created",
-            "parent_id",
-        ]
-    ]
+    # Check if required columns exist
+    required_columns = ["date_completed", "customer_id", "status", "order_id", "date_created", "parent_id"]
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        logging.error(f"Missing required columns: {missing_columns}")
+        return
+
+    df = df[required_columns]
     df.rename(
         columns={
             "date_completed": "Completed_Date__c",
@@ -408,10 +410,7 @@ def process_and_save_orders(changes):
     df = df.fillna("")
     df = df.map(convert)
 
-    upload_data(df, "HC_Order__c",changes)
-
-    # update_processed_flags(changes)
-
+    upload_data(df, "HC_Order__c", changes)
 
 def process_and_save_order_items(changes):
     if changes is None or len(changes) == 0:
