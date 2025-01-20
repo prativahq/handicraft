@@ -547,9 +547,9 @@ def process_and_save_product(changes):
                 return tag_mapping.get(row['Post_Parent__c'], '')
             return tag_mapping.get(row['Product_Identifier__c'], '')
             
-        df['Product_Tags__c'] = df.apply(get_tags, axis=1)
+        df['Tags__c'] = df.apply(get_tags, axis=1)
     else:
-        df['Product_Tags__c'] = ''
+        df['Tags__c'] = ''
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
