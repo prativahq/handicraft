@@ -497,6 +497,11 @@ def process_and_save_product(changes):
 
     df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type"]]
     df = df.map(convert)
+    # Add post_type mapping
+    post_type_mapping = {
+        'product': 'product',
+        'product_variation': 'product_variation'
+    }
     df.rename(
         columns={
             "ID": "Product_Identifier__c",
@@ -509,6 +514,9 @@ def process_and_save_product(changes):
         inplace=True,
         errors="ignore",
     )
+    
+    # Map post types to Salesforce values
+    df["Post_Type__c"] = df["Post_Type__c"].map(post_type_mapping)
     
     if not teacher_df.empty:
     # Create mapping of product ID to teacher term_id
