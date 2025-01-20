@@ -497,11 +497,6 @@ def process_and_save_product(changes):
 
     df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type"]]
     df = df.map(convert)
-    # Add post_type mapping
-    post_type_mapping = {
-        'product': 'product',
-        'product_variation': 'product_variation'
-    }
     df.rename(
         columns={
             "ID": "Product_Identifier__c",
@@ -509,14 +504,11 @@ def process_and_save_product(changes):
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
             "post_parent":"Post_Parent__c",
-            "post_type":"Post_Type__c",
+            "post_type":"Product_Type__c",
         },
         inplace=True,
         errors="ignore",
     )
-    
-    # Map post types to Salesforce values
-    df["Post_Type__c"] = df["Post_Type__c"].map(post_type_mapping)
     
     if not teacher_df.empty:
     # Create mapping of product ID to teacher term_id
@@ -577,7 +569,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("DataFrame with post_parent and teachers:")
-    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Post_Type__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
