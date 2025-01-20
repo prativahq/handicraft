@@ -350,7 +350,13 @@ def process_and_save_orders(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT * FROM 7903_wc_order_stats WHERE order_id IN ({', '.join(['%s'] * len(ids))})"""
+    query = f"""
+        SELECT o.*, c.*, um.*
+        FROM 7903_wc_order_stats o
+        LEFT JOIN 7903_wc_customer_lookup c ON o.customer_id = c.customer_id
+        LEFT JOIN 7903_usermeta um ON c.user_id = um.user_id 
+        WHERE o.order_id IN ({', '.join(['%s'] * len(ids))})
+    """
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
@@ -362,7 +368,6 @@ def process_and_save_orders(changes):
     df = pd.DataFrame(results)
     logging.info(f"Processing {len(df)} records")
 
-    #  Customer_Note__c, Order_Notes__c, Payment_Method__c, Reference__c, Refund_Items__c, Transaction_ID__c
     df = df[
         [
             "date_completed",
