@@ -470,7 +470,7 @@ def process_and_save_product(changes):
     results = mycursor.fetchall()
 
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (23, 192, 256, 27, 111, 42, 64);"
+        "SELECT object_id, term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (23, 192, 256, 27, 111, 42, 64);"
     )
     categories = mycursor.fetchall()
 
@@ -536,22 +536,24 @@ def process_and_save_product(changes):
     )
     df["Year__c"] = post_date.dt.year
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-    df["Category__c"] = (
-        df["Product_Identifier__c"].map(
-            categories.set_index("object_id")["cat"].to_dict()
-        )
-        .map(
-            {
-                23: "Classes",
-                192: "Clubhouse Only",
-                256: "Event",
-                27: "Membership",
-                111: "Open Studios",
-                42: "Transportation",
-                64: "Workshops",
-            }
-        )
-    )
+    # Map categories to readable names
+    category_names = {
+        23: "Classes",
+        192: "Clubhouse Only",
+        256: "Event",
+        27: "Membership",
+        111: "Open Studios",
+        42: "Transportation",
+        64: "Workshops"
+    }
+    # Group categories by product and combine them
+    category_mapping = categories.groupby('object_id')['cat'].apply(
+        lambda x: ';'.join([category_names.get(cat, '') for cat in x])
+    ).to_dict()
+
+    # Map categories to products
+    df["Category__c"] = df["Product_Identifier__c"].map(category_mapping)
+    
     df["Day_of_Week__c"] = df["Product_Identifier__c"].map(
             day_of_week.set_index("object_id")["cat"].to_dict()
         ).map(
