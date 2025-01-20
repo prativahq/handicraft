@@ -443,11 +443,13 @@ def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT p.*, opl.max_price
+    query = f"""SELECT p.*, opl.max_price, p.post_parent
             FROM 7903_posts AS p
             LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
-            WHERE p.post_type = 'product'
-            AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
+            WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
+        AND ((p.post_type = 'product' AND p.post_parent = 0) 
+             OR (p.post_type = 'product_variation' AND p.post_parent != 0))
+    """
             
     # Teacher mapping query with IDs
     # GROUP_CONCAT(t.name) as teacher,
@@ -493,7 +495,6 @@ def process_and_save_product(changes):
         return
 
     df = pd.DataFrame(results)
-
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
     teacher_df = pd.DataFrame(teachers)
@@ -502,7 +503,7 @@ def process_and_save_product(changes):
     logging.info(teacher_df.to_dict('records'))
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price", "post_parent"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -510,10 +511,17 @@ def process_and_save_product(changes):
             "post_title": "Name",
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
+            "post_parent": "Post_Parent__c"
         },
         inplace=True,
         errors="ignore",
     )
+    
+    # Set Post_Parent__c to empty string for parent/normal products
+    df.loc[df['Post_Parent__c'] == 0, 'Post_Parent__c'] = ''
+    
+    # Convert Post_Parent__c to string where it has values
+    df['Post_Parent__c'] = df['Post_Parent__c'].apply(lambda x: str(x) if x else '')
     
     if not teacher_df.empty:
     # Create mapping of product ID to teacher term_id
@@ -573,8 +581,8 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     # Log the DataFrame to see the teacher IDs
-    logging.info("DataFrame with teachers:")
-    logging.info(df[["Product_Identifier__c", "Id__c"]].to_dict('records'))
+    logging.info("DataFrame:")
+    logging.info(df[["Product_Identifier__c", "Id__c", "Post_Parent__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
