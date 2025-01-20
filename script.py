@@ -571,7 +571,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("DataFrame with post_parent and teachers:")
-    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
