@@ -462,6 +462,17 @@ def process_and_save_product(changes):
             AND tt.parent = 248 GROUP BY tr.object_id
     """.format(', '.join(['%s'] * len(ids)))
     
+    # Add tag query
+    tag_query = """
+        SELECT tr.object_id as product_id, GROUP_CONCAT(t.name SEPARATOR ';') as tags
+        FROM 7903_term_relationships tr
+        JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+        JOIN 7903_terms t ON tt.term_id = t.term_id
+        WHERE tr.object_id IN ({})
+        AND tt.taxonomy = 'product_tag'
+        GROUP BY tr.object_id
+    """.format(', '.join(['%s'] * len(ids)))
+    
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
@@ -482,16 +493,21 @@ def process_and_save_product(changes):
     # Execute teacher query
     mycursor.execute(teacher_query, ids)
     teachers = mycursor.fetchall()
+    
+    # Execute tag query
+    mycursor.execute(tag_query, ids)
+    tags = mycursor.fetchall()
     mydb.close()  # Close the connection as soon as we're done
 
     if results is None or len(results) == 0:
         return
 
     df = pd.DataFrame(results)
-
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
     teacher_df = pd.DataFrame(teachers)
+    tags_df = pd.DataFrame(tags)
+
     
     logging.info(f"Processing {len(df)} records")
 
@@ -510,8 +526,8 @@ def process_and_save_product(changes):
         errors="ignore",
     )
     
-    if not teacher_df.empty:
     # Create mapping of product ID to teacher term_id
+    if not teacher_df.empty:
         teacher_mapping = dict(zip(teacher_df['products'], teacher_df['teacher_id']))
         
         # For each product, get teacher ID either directly or from parent
@@ -521,6 +537,19 @@ def process_and_save_product(changes):
             return teacher_mapping.get(row['Product_Identifier__c'])  # Get own teacher ID
         
         df['Id__c'] = df.apply(get_teacher_id, axis=1)
+    
+    # Map tags to products
+    if not tags_df.empty:
+        tag_mapping = dict(zip(tags_df['product_id'], tags_df['tags']))
+        
+        def get_tags(row):
+            if row['Parent_Product__c'] != 0:  # If child product
+                return tag_mapping.get(row['Parent_Product__c'], '')
+            return tag_mapping.get(row['Product_Identifier__c'], '')
+            
+        df['Product_Tags__c'] = df.apply(get_tags, axis=1)
+    else:
+        df['Product_Tags__c'] = ''
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
@@ -569,7 +598,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("DataFrame with post_parent and teachers:")
-    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
