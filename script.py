@@ -543,8 +543,8 @@ def process_and_save_product(changes):
         tag_mapping = dict(zip(tags_df['product_id'], tags_df['tags']))
         
         def get_tags(row):
-            if row['Parent_Product__c'] != 0:  # If child product
-                return tag_mapping.get(row['Parent_Product__c'], '')
+            if row['Post_Parent__c'] != 0:  # If child product
+                return tag_mapping.get(row['Post_Parent__c'], '')
             return tag_mapping.get(row['Product_Identifier__c'], '')
             
         df['Product_Tags__c'] = df.apply(get_tags, axis=1)
