@@ -443,31 +443,24 @@ def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT p.*, opl.max_price, p.post_parent
+    query = f"""SELECT p.*, opl.max_price
             FROM 7903_posts AS p
             LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
-            WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
-        AND ((p.post_type = 'product' AND p.post_parent = 0) 
-             OR (p.post_type = 'product_variation' AND p.post_parent != 0))
-    """
+            WHERE p.post_type IN ('product', 'product_variation')
+            AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
             
-    # Teacher mapping query for parent products
+    # Teacher mapping query with IDs
+    # GROUP_CONCAT(t.name) as teacher,
+    # GROUP_CONCAT(t.term_id) as teacher_ids
     teacher_query = """
-        SELECT tr.object_id as products, 
-               t.term_id as teacher_id
-        FROM 7903_term_relationships tr 
-        JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
-        JOIN 7903_terms t ON tt.term_id = t.term_id
-        WHERE tr.object_id IN (
-            SELECT ID FROM 7903_posts 
-            WHERE ID IN ({}) OR ID IN (
-                SELECT post_parent FROM 7903_posts 
-                WHERE ID IN ({})
-            )
-        )
-        AND tt.parent = 248 
-        GROUP BY tr.object_id
-    """
+            SELECT tr.object_id as products, 
+            t.term_id as teacher_id
+            FROM 7903_term_relationships tr 
+            JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+            JOIN 7903_terms t ON tt.term_id = t.term_id
+            WHERE tr.object_id IN ({})
+            AND tt.parent = 248 GROUP BY tr.object_id
+    """.format(', '.join(['%s'] * len(ids)))
     
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -475,18 +468,6 @@ def process_and_save_product(changes):
     mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
     mycursor.execute(query, ids)
     results = mycursor.fetchall()
-    
-    # Get teacher mappings
-    teacher_query_formatted = teacher_query.format(
-        ', '.join(['%s'] * len(ids)),
-        ', '.join(['%s'] * len(ids))
-    )
-    mycursor.execute(teacher_query_formatted, ids + ids)
-    teachers = mycursor.fetchall()
-    
-    # Log teacher results for debugging
-    logging.info("Teacher mapping results:")
-    logging.info(teachers)
 
     mycursor.execute(
         "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (23, 192, 256, 27, 111, 42, 64);"
@@ -498,20 +479,23 @@ def process_and_save_product(changes):
     )
     day_of_week = mycursor.fetchall()
     
+    # Execute teacher query
+    mycursor.execute(teacher_query, ids)
+    teachers = mycursor.fetchall()
     mydb.close()  # Close the connection as soon as we're done
 
     if results is None or len(results) == 0:
         return
 
     df = pd.DataFrame(results)
+
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
     teacher_df = pd.DataFrame(teachers)
     
-    # Create teacher mapping dictionary
-    teacher_mapping = dict(zip(teacher_df['products'], teacher_df['teacher_id']))
+    logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price", "post_parent"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent","post_type"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -519,26 +503,23 @@ def process_and_save_product(changes):
             "post_title": "Name",
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
-            "post_parent": "Post_Parent__c"
+            "post_parent":"Post_Parent__c",
         },
         inplace=True,
         errors="ignore",
     )
     
-    # Handle Id__c field for both parent products and variations
-    def get_teacher_id(row):
-        if row['Post_Parent__c'] == 0:  # Parent product
-            return teacher_mapping.get(str(row['Product_Identifier__c']), '')
-        else:  # Variation - use parent's teacher ID
-            return teacher_mapping.get(str(row['Post_Parent__c']), '')
-            
-    # Assign teacher IDs
-    df['Id__c'] = df.apply(get_teacher_id, axis=1)
-    
-    # Convert Post_Parent__c to empty string for parent products
-    df.loc[df['Post_Parent__c'] == 0, 'Post_Parent__c'] = ''
-    # Convert remaining Post_Parent__c values to strings
-    df['Post_Parent__c'] = df['Post_Parent__c'].apply(lambda x: str(x) if x else '')
+    if not teacher_df.empty:
+    # Create mapping of product ID to teacher term_id
+        teacher_mapping = dict(zip(teacher_df['products'], teacher_df['teacher_id']))
+        
+        # For each product, get teacher ID either directly or from parent
+        def get_teacher_id(row):
+            if row['Post_Parent__c'] != 0:  # If it's a variation
+                return teacher_mapping.get(row['Post_Parent__c'])  # Get parent's teacher ID
+            return teacher_mapping.get(row['Product_Identifier__c'])  # Get own teacher ID
+        
+        df['Id__c'] = df.apply(get_teacher_id, axis=1)
         
     df["Did_Not_Run__c"] = False
     post_date = pd.to_datetime(df["post_date"])
@@ -586,11 +567,8 @@ def process_and_save_product(changes):
     df = df.fillna("")
     df = df.map(convert)
     
-    # Debug logging
-    logging.info("Teacher mapping:")
-    logging.info(teacher_mapping)
-    logging.info("Final DataFrame:")
-    logging.info(df[["Product_Identifier__c", "Id__c", "Post_Parent__c"]].to_dict('records'))
+    logging.info("DataFrame with post_parent and teachers:")
+    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
