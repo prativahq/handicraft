@@ -23,7 +23,7 @@ def get_access_token():
         password = os.getenv("PASSWORD")
         instance_url = os.getenv("INSTANCE_URL")
         
-        logger.info("Retrieved credentials from environment", consumer_key, consumer_secret, username, password, instance_url)
+        # logger.info("Retrieved credentials from environment", consumer_key, consumer_secret, username, password, instance_url)
 
         # Validate credentials
         if not all([consumer_key, consumer_secret, username, password, instance_url]):
@@ -46,18 +46,18 @@ def get_access_token():
         # Make request
         response = requests.post(auth_url, data=payload,headers=headers)
         # Log response details
-        logger.info(f"Status Code: {response.status_code}")
-        logger.info(f"Response Content: {response.text}")
+        # logger.info(f"Status Code: {response.status_code}")
+        # logger.info(f"Response Content: {response.text}")
         response.raise_for_status()
         
         # Get token
         token_data = response.json()
         access_token = token_data['access_token']
-        logger.info("Successfully retrieved access token")
+        # logger.info("Successfully retrieved access token")
         
         # Update existing SALESFORCE_API_KEY in .env file
         set_key(dotenv_path, 'SALESFORCE_API_KEY', access_token)
-        logger.info("Successfully updated SALESFORCE_API_KEY in .env file")
+        # logger.info("Successfully updated SALESFORCE_API_KEY in .env file")
 
         return access_token
 
