@@ -495,7 +495,7 @@ def process_and_save_product(changes):
     
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -504,6 +504,7 @@ def process_and_save_product(changes):
             "guid": "Product_Page_URL__c",
             "max_price": "Regular_Price__c",
             "post_parent":"Post_Parent__c",
+            "post_type":"Post_Type__c",
         },
         inplace=True,
         errors="ignore",
@@ -568,11 +569,10 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("DataFrame with post_parent and teachers:")
-    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Post_Type__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
-
 
 def process_and_save_teachers(changes):
     if changes is None or len(changes) == 0:
@@ -607,7 +607,6 @@ def process_and_save_teachers(changes):
     upload_data(df, "HC_Teacher__c",changes)
 
     # update_processed_flags(changes)
-
 
 def update_processed_flags(changes):
     try:
@@ -645,7 +644,3 @@ if __name__ == "__main__":
             process_and_save_teachers(changes_data)
         if table == "7903_posts":
             process_and_save_product(changes_data)
-
-
-# order_item - 35  "Monday Knitting Circle with Kay Mehls"
-# product - 762
