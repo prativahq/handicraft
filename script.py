@@ -350,36 +350,47 @@ def process_and_save_orders(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
+    
+    # Modified query to select only distinct orders and essential fields
     query = f"""
-        SELECT DISTINCT o.*, c.customer_id, um.meta_value
+        SELECT DISTINCT 
+            o.order_id,
+            o.date_completed,
+            o.customer_id,
+            o.status,
+            o.date_created,
+            o.parent_id
         FROM 7903_wc_order_stats o
-        LEFT JOIN 7903_wc_customer_lookup c ON o.customer_id = c.customer_id
-        LEFT JOIN 7903_usermeta um ON c.user_id = um.user_id 
         WHERE o.order_id IN ({', '.join(['%s'] * len(ids))})
     """
+    
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
-    mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
+    mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query, ids)
     results = mycursor.fetchall()
-    mydb.close()  # Close the connection as soon as we're done
+    mydb.close()
 
     if not results:
         logging.info("No results found for the given order IDs")
         return
 
+    # Convert to DataFrame and drop duplicates explicitly
     df = pd.DataFrame(results)
-    logging.info(f"Processing {len(df)} records")
+    df = df.drop_duplicates(subset=['order_id'])
+    
+    logging.info(f"Processing {len(df)} unique records")
 
-    # Check if required columns exist
-    required_columns = ["date_completed", "customer_id", "status", "order_id", "date_created", "parent_id"]
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        logging.error(f"Missing required columns: {missing_columns}")
-        return
-
-    df = df[required_columns]
+    df = df[[
+        "date_completed",
+        "customer_id",
+        "status",
+        "order_id",
+        "date_created",
+        "parent_id"
+    ]]
+    
     df.rename(
         columns={
             "date_completed": "Completed_Date__c",
@@ -389,26 +400,31 @@ def process_and_save_orders(changes):
             "date_created": "Order_Date__c",
         },
         inplace=True,
-        errors="ignore",
+        errors="ignore"
     )
+    
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-    df["Order_Status__c"] = df["Order_Status__c"].map(
-        {
-            "wc-refunded": "refunded",
-            "wc-processing": "processing",
-            "wc-completed": "completed",
-            "wc-on-hold": "on-hold",
-            "wc-cancelled": "cancelled",
-        }
-    )
+    df["Order_Status__c"] = df["Order_Status__c"].map({
+        "wc-refunded": "refunded",
+        "wc-processing": "processing",
+        "wc-completed": "completed",
+        "wc-on-hold": "on-hold",
+        "wc-cancelled": "cancelled",
+    })
+    
     df["Refund_Items__c"] = np.where(
-        (df["parent_id"] != 0) & (df["Order_Status__c"] == "refunded"), "Refunded", ""
+        (df["parent_id"] != 0) & (df["Order_Status__c"] == "refunded"),
+        "Refunded",
+        ""
     )
 
     df.drop(columns=["parent_id"], inplace=True)
-
     df = df.fillna("")
     df = df.map(convert)
+
+    # Add debug logging
+    logging.info(f"Final unique records to be processed: {len(df)}")
+    logging.info(f"Unique order numbers: {df['Order_Number__c'].unique()}")
 
     upload_data(df, "HC_Order__c", changes)
 
