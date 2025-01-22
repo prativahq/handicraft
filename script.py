@@ -351,11 +351,16 @@ def process_and_save_orders(changes):
         return
     ids = [change["id"] for change in changes]
     query = f"""
-        SELECT p.*, pm.meta_key, pm.meta_value 
+        SELECT 
+            p.ID, p.post_author, p.post_date, p.post_status, 
+            p.post_excerpt, p.post_type,
+            MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
+            MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via
         FROM 7903_posts p
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
         AND p.post_type = 'shop_order'
+        GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt, p.post_type
     """
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -366,30 +371,8 @@ def process_and_save_orders(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
-    # Pivot the metadata to columns
-    meta_df = df.pivot(index='ID', columns='meta_key', values='meta_value')
-    
-    # Get the base order data
-    order_df = df.drop_duplicates(subset=['ID'])[['ID', 'post_date', 'post_status', 'post_title', 'post_excerpt', 'post_author']]
-    
-    order_df['post_date'] = pd.to_datetime(order_df['post_date']).dt.strftime('%d-%m-%Y')
-    
-    # Merge order data with metadata
-    final_df = pd.merge(order_df, meta_df, left_on='ID', right_index=True)
-    
-    logging.info(f"Processing {len(final_df)} records")
+    logging.info(f"Processing {len(df)} records")
 
-    df = df[
-        [
-            "ID",
-            "post_author",
-            "post_date",
-            "post_status",
-            "post_excerpt",
-            "_transaction_id",
-            "_created_via",           
-        ]
-    ]
     df.rename(
         columns={
             "ID": "Order_Number__c",
@@ -397,14 +380,15 @@ def process_and_save_orders(changes):
             "post_date": "Order_Date__c",
             "post_status": "Order_Status__c",
             "post_excerpt": "Customer_Note__c",
-            "_transaction_id": "Transaction_ID__c",
-            "_created_via": "Source__c",
+            "transaction_id": "Transaction_ID__c",
+            "created_via": "Source__c"
         },
         inplace=True,
-        errors="ignore",
+        errors="ignore"
     )
     # Clean up status field
-    df['Order_Status__c'] = final_df['Order_Status__c'].str.replace('wc-', '')
+    df['Order_Status__c'] = df['Order_Status__c'].str.replace('wc-', '')
+    df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%d-%m-%Y')
 
     df = df.fillna("")
     df = df.map(convert)
