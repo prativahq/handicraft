@@ -390,6 +390,8 @@ def process_and_save_orders(changes):
     df['Order_Status__c'] = df['Order_Status__c'].str.replace('wc-', '')
     # Format date as YYYY-MM-DD for Salesforce Date field
     df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')
+    # Add HC_Member__c lookup field using Member_ID__c
+    df["HC_Member__c"] = df["Member_ID__c"]
 
     df = df.fillna("")
     df = df.map(convert)
