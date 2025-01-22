@@ -350,83 +350,69 @@ def process_and_save_orders(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    
-    # Modified query to select only distinct orders and essential fields
     query = f"""
-        SELECT DISTINCT 
-            o.order_id,
-            o.date_completed,
-            o.customer_id,
-            o.status,
-            o.date_created,
-            o.parent_id
-        FROM 7903_wc_order_stats o
-        WHERE o.order_id IN ({', '.join(['%s'] * len(ids))})
+        SELECT p.*, pm.meta_key, pm.meta_value 
+        FROM 7903_posts p
+        LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
+        WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
+        AND p.post_type = 'shop_order'
     """
-    
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
-    mycursor = mydb.cursor(dictionary=True)
+    mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
     mycursor.execute(query, ids)
     results = mycursor.fetchall()
-    mydb.close()
+    mydb.close()  # Close the connection as soon as we're done
 
-    if not results:
-        logging.info("No results found for the given order IDs")
-        return
-
-    # Convert to DataFrame and drop duplicates explicitly
     df = pd.DataFrame(results)
-    df = df.drop_duplicates(subset=['order_id'])
+    # Pivot the metadata to columns
+    meta_df = df.pivot(index='ID', columns='meta_key', values='meta_value')
     
-    logging.info(f"Processing {len(df)} unique records")
+    # Get the base order data
+    order_df = df.drop_duplicates(subset=['ID'])[['ID', 'post_date', 'post_status', 'post_title', 'post_excerpt', 'post_author']]
+    
+    order_df['post_date'] = pd.to_datetime(order_df['post_date']).dt.strftime('%d-%m-%Y')
+    
+    # Merge order data with metadata
+    final_df = pd.merge(order_df, meta_df, left_on='ID', right_index=True)
+    
+    logging.info(f"Processing {len(final_df)} records")
 
-    df = df[[
-        "date_completed",
-        "customer_id",
-        "status",
-        "order_id",
-        "date_created",
-        "parent_id"
-    ]]
-    
+    df = df[
+        [
+            "ID",
+            "post_author",
+            "post_date",
+            "post_status",
+            "post_excerpt",
+            "_transaction_id",
+            "_created_via",           
+        ]
+    ]
     df.rename(
         columns={
-            "date_completed": "Completed_Date__c",
-            "customer_id": "Member_ID__c",
-            "status": "Order_Status__c",
-            "order_id": "Order_Number__c",
-            "date_created": "Order_Date__c",
+            "ID": "Order_Number__c",
+            "post_author": "Member_ID__c",
+            "post_date": "Order_Date__c",
+            "post_status": "Order_Status__c",
+            "post_excerpt": "Customer_Note__c",
+            "_transaction_id": "Transaction_ID__c",
+            "_created_via": "Source__c",
         },
         inplace=True,
-        errors="ignore"
+        errors="ignore",
     )
-    
-    df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-    df["Order_Status__c"] = df["Order_Status__c"].map({
-        "wc-refunded": "refunded",
-        "wc-processing": "processing",
-        "wc-completed": "completed",
-        "wc-on-hold": "on-hold",
-        "wc-cancelled": "cancelled",
-    })
-    
-    df["Refund_Items__c"] = np.where(
-        (df["parent_id"] != 0) & (df["Order_Status__c"] == "refunded"),
-        "Refunded",
-        ""
-    )
+    # Clean up status field
+    df['Order_Status__c'] = final_df['Order_Status__c'].str.replace('wc-', '')
 
-    df.drop(columns=["parent_id"], inplace=True)
     df = df.fillna("")
     df = df.map(convert)
+    logging.info("Final Order DataFrame")
+    logging.info(df)
+    upload_data(df, "HC_Order__c",changes)
 
-    # Add debug logging
-    logging.info(f"Final unique records to be processed: {len(df)}")
-    logging.info(f"Unique order numbers: {df['Order_Number__c'].unique()}")
-
-    upload_data(df, "HC_Order__c", changes)
+    # update_processed_flags(changes)
 
 def process_and_save_order_items(changes):
     if changes is None or len(changes) == 0:
