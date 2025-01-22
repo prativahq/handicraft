@@ -99,7 +99,11 @@ def send_email(content_data):
         to_emails = [To(email.strip()) for email in email_list]
         sg = SendGridAPIClient(api_key=SENDGRID_API_KEY)
         
-        # Create email
+        # Create formatted data table
+        data_records = pd.read_json(StringIO(json.dumps(content_data.get('from_db', []))))
+        data_table = data_records.to_html(index=False) if not data_records.empty else "No records processed"
+        
+        # Create email with enhanced formatting
         from_email = Email("noreply@prativa.in")
         html_content = f"""
             <html>
@@ -111,6 +115,10 @@ def send_email(content_data):
                     <li><b>Total Records Processed:</b> {len(content_data.get('success', '').splitlines())}</li>
                     <li><b>Failed Records:</b> {len(content_data.get('failed', '').splitlines())}</li>
                 </ul>
+                <hr>
+                <h4>Processed Data:</h4>
+                {data_table}
+                <hr>
                 <p>Best Regards,</p>
                 <p>Your Automation Script</p>
             </body>
