@@ -489,6 +489,16 @@ def process_and_save_product(changes):
     )
     day_of_week = mycursor.fetchall()
     
+    mycursor.execute(
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (287,288,289);"
+    )
+    trimester = mycursor.fetchall()
+    
+    mycursor.execute(
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (291,292,293);"
+    )
+    year = mycursor.fetchall()
+    
     # Execute teacher query
     mycursor.execute(teacher_query, ids)
     teachers = mycursor.fetchall()
@@ -504,6 +514,8 @@ def process_and_save_product(changes):
     df = pd.DataFrame(results)
     categories = pd.DataFrame(categories)
     day_of_week = pd.DataFrame(day_of_week)
+    trimester = pd.DataFrame(trimester)
+    year = pd.DataFrame(year)
     teacher_df = pd.DataFrame(teachers)
     tags_df = pd.DataFrame(tags)
 
@@ -555,14 +567,6 @@ def process_and_save_product(changes):
     df["Post_Date__c"] = post_date.dt.strftime("%Y-%m-%d")
     df.drop(columns=["post_date"], inplace=True)
     df["Time__c"] = post_date.dt.strftime("%H:%M:%S")
-    df["Trimester__c"] = post_date.dt.month.map(
-        lambda x: "Spring"
-        if x in [4, 5, 6, 7]
-        else "Fall"
-        if x in [8, 9, 10, 11]
-        else "Winter"
-    )
-    df["Year__c"] = post_date.dt.year
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Category__c"] = (
         df["Product_Identifier__c"].map(
@@ -592,12 +596,30 @@ def process_and_save_product(changes):
                 48: "Saturday",
             }
         )
+    df["Trimester__c"] = df["Product_Identifier__c"].map(
+            trimester.set_index("object_id")["cat"].to_dict()
+        ).map(
+            {
+                287: "Winter",
+                288: "Spring",
+                289: "Summer",
+            }
+        )
+    df["Year__c"] = df["Product_Identifier__c"].map(
+            year.set_index("object_id")["cat"].to_dict()
+        ).map(
+            {
+                291: "2023",
+                292: "2024",
+                293: "2025",
+            }
+        )
 
     df = df.fillna("")
     df = df.map(convert)
     
     logging.info("Final Product DataFrame")
-    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c"]].to_dict('records'))
     upload_data(df, "HC_Product__c",changes)
     # print("Product uploaded",df)
     # update_processed_flags(changes)
