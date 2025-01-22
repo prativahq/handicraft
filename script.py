@@ -388,7 +388,8 @@ def process_and_save_orders(changes):
     )
     # Clean up status field
     df['Order_Status__c'] = df['Order_Status__c'].str.replace('wc-', '')
-    df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%d-%m-%Y')
+    # Format date as YYYY-MM-DD for Salesforce Date field
+    df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')
 
     df = df.fillna("")
     df = df.map(convert)
