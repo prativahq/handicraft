@@ -423,10 +423,8 @@ def process_and_save_orders(changes):
     df = df.fillna("")
     df = df.map(convert)
     logging.info("Final Order DataFrame")
-    logging.info(df).to_dict('records')
+    logging.info(df)
     upload_data(df, "HC_Order__c",changes)
-
-    # update_processed_flags(changes)
 
 def process_and_save_order_items(changes):
     if not changes:
@@ -485,7 +483,7 @@ def process_and_save_order_items(changes):
     df = df.map(convert)
     
     logging.info("Final Order Item DataFrame")
-    logging.info(df).to_dict('records')
+    logging.info(df)
     
     # Upload to Salesforce
     upload_data(df, "HC_Order_Item__c", changes)
