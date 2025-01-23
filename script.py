@@ -455,6 +455,8 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query, ids)
     results = mycursor.fetchall()
+    logging.info(f"Query results: {results}")
+
     mydb.close()
 
     # Convert to DataFrame
