@@ -434,12 +434,11 @@ def process_and_save_order_items(changes):
     
     # Query order items and related metadata
     query = f"""
-        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
+        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' 
+        and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
+        and oi.order_id in ({', '.join(['%s'] * len(ids))})
+
     """
-    
-    # Debug log query
-    logging.info(f"Executing query: {query}")
-    
     # Database connection
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -447,8 +446,9 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query)
     results = mycursor.fetchall()
-    logging.info(f"Query results: {results}")
-
+    if not results:
+        logging.info("No order items found")
+        return
     mydb.close()
 
     # Convert to DataFrame
@@ -457,10 +457,27 @@ def process_and_save_order_items(changes):
     # Debug log
     logging.info(f"DataFrame columns: {df.columns.tolist()}")
         
-        
-    # df = df.map(convert)
+    # Pivot the DataFrame to get required fields
+    df_pivot = df.pivot_table(index=['order_id', 'order_item_id'], 
+                              columns='meta_key', 
+                              values='meta_value', 
+                              aggfunc='first').reset_index()
     
-
+    # Debug log pivoted DataFrame columns
+    logging.info(f"Pivoted DataFrame columns: {df_pivot.columns.tolist()}")
+    
+    # Select and rename columns to match Salesforce fields
+    df_pivot = df_pivot[['order_id', '_qty', '_line_subtotal', '_line_total']]
+    df_pivot.rename(
+        columns={
+            "order_id": "Parent_Order_Number__c",
+            "_qty": "Item_Quantity__c",
+            "_line_subtotal": "Net_Revenue__c",
+            "_line_total": "Item_Cost__c"
+        },
+        inplace=True,
+        errors="ignore"
+    )
     
     # Convert numeric fields if they exist
     if "Net_Revenue__c" in df.columns:
