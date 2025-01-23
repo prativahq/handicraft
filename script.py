@@ -439,7 +439,7 @@ def process_and_save_order_items(changes):
     """
     
     # Debug log query
-    logging.info(f"Executing query: {query}")
+    # logging.info(f"Executing query: {query}")
     
     # Database connection
     mydb = mysql.connector.connect(
