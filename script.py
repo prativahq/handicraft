@@ -489,8 +489,8 @@ def process_and_save_order_items(changes):
     
     df.drop(columns=['order_item_id'], inplace=True)
     
-    df["Line Total"] = pd.to_numeric(df["Line Total"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99)
-    df["Line Subtotal"] = pd.to_numeric(df["Line Subtotal"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99)
+    df["Line Total"] = pd.to_numeric(df["Line Total"], errors='coerce').round(2).map('{:.2f}'.format)
+    df["Line Subtotal"] = pd.to_numeric(df["Line Subtotal"], errors='coerce').round(2).map('{:.2f}'.format)
     
     df.rename(
         columns={
