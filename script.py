@@ -434,9 +434,12 @@ def process_and_save_order_items(changes):
     
     # Query order items and related metadata
     query = f"""
-        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' 
-        and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
+        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
     """
+    
+    # Debug log query
+    logging.info(f"Executing query: {query}")
+    
     # Database connection
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -444,58 +447,40 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query)
     results = mycursor.fetchall()
+    logging.info(f"Query results: {results}")
+
     mydb.close()
-    if not results:
-        logging.info("No order items found")
-        return
 
     # Convert to DataFrame
     df = pd.DataFrame(results)
-    df = df[df['order_id'].isin(ids)]
     
     # Debug log
     logging.info(f"DataFrame columns: {df.columns.tolist()}")
         
-    # Pivot the DataFrame to get required fields
-    df_pivot = df.pivot_table(index=['order_id', 'order_item_id'], 
-                              columns='meta_key', 
-                              values='meta_value', 
-                              aggfunc='first').reset_index()
+        
+    # df = df.map(convert)
     
-    # Debug log pivoted DataFrame columns
-    logging.info(f"Pivoted DataFrame columns: {df_pivot.columns.tolist()}")
+
     
-    # Select and rename columns to match Salesforce fields
-    df_pivot = df_pivot[['order_id', '_qty', '_line_subtotal', '_line_total']]
-    df_pivot.rename(
-        columns={
-            "order_id": "Parent_Order_Number__c",
-            "_qty": "Item_Quantity__c",
-            "_line_subtotal": "Net_Revenue__c",
-            "_line_total": "Item_Cost__c"
-        },
-        inplace=True,
-        errors="ignore"
-    )
+    # Convert numeric fields if they exist
+    if "Net_Revenue__c" in df.columns:
+        df["Net_Revenue__c"] = pd.to_numeric(df["Net_Revenue__c"], errors='coerce').round(2)
+    if "Item_Cost__c" in df.columns:
+        df["Item_Cost__c"] = pd.to_numeric(df["Item_Cost__c"], errors='coerce').round(2)
     
     # Additional transformations
-    df_pivot["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-    df_pivot["Ken_s_Field__c"] = False
-    
-    # Convert numeric fields
-    for field in ["Net_Revenue__c", "Item_Cost__c"]:
-        if field in df_pivot.columns:
-            df_pivot[field] = pd.to_numeric(df_pivot[field], errors='coerce').round(2)
+    df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
+    df["Ken_s_Field__c"] = False
     
     # Fill and convert
-    df_pivot = df_pivot.fillna("")
-    df_pivot = df_pivot.map(convert)
-        
+    df = df.fillna("")
+    df = df.map(convert)
+    
     logging.info("Final Order Item DataFrame")
-    logging.info(df_pivot)
+    logging.info(df)
     
     # Upload to Salesforce
-    upload_data(df_pivot, "HC_Order_Item__c", changes)
+    upload_data(df, "HC_Order_Item__c", changes)
 
 
 def process_and_save_product(changes):
