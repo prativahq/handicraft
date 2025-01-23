@@ -448,9 +448,7 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query)
     results = mycursor.fetchall()
-    logging.info(f"Query results: {results}")
-
-    mydb.close()
+    # logging.info(f"Query results: {results}")
 
     # Convert to DataFrame
     df = pd.DataFrame(results)
@@ -461,9 +459,15 @@ def process_and_save_order_items(changes):
     modified_query = f"""
         select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
     """
+    mycursor.execute(modified_query)
+    modified_query = mycursor.fetchall()
         
     modified_df = pd.DataFrame(modified_query)
+
     logging.info(f"Modified DataFrame: {modified_df}")
+    
+    mydb.close()
+
     
     df ["Quantity"]=0
     df ["Line Total"]=0
