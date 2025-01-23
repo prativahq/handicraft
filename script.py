@@ -434,7 +434,7 @@ def process_and_save_order_items(changes):
     
     # Query order items and related metadata
     query = f"""
-        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from `7903_woocommerce_order_items` oi inner join `7903_woocommerce_order_itemmeta` om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total');
+        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
     """
     
     # Debug log query
@@ -445,7 +445,7 @@ def process_and_save_order_items(changes):
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
     mycursor = mydb.cursor(dictionary=True)
-    mycursor.execute(query, ids)
+    mycursor.execute(query)
     results = mycursor.fetchall()
     logging.info(f"Query results: {results}")
 
