@@ -434,7 +434,8 @@ def process_and_save_order_items(changes):
     
     # Query order items and related metadata
     query = f"""
-        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
+        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi 
+        inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
     """
     
     # Debug log query
@@ -454,19 +455,28 @@ def process_and_save_order_items(changes):
     # Convert to DataFrame
     df = pd.DataFrame(results)
     
-    # Debug log
-    logging.info(f"DataFrame columns: {df.columns.tolist()}")
-        
-        
-    # df = df.map(convert)
+    unique_ids = df['order_item_id'].unique()
+    logging.info(f"Unique order item IDs: {unique_ids}")
     
-
+    modified_query = f"""
+        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
+    """
+        
+    modified_df = pd.DataFrame(modified_query)
+    logging.info(f"Modified DataFrame: {modified_df}")
     
-    # Convert numeric fields if they exist
-    if "Net_Revenue__c" in df.columns:
-        df["Net_Revenue__c"] = pd.to_numeric(df["Net_Revenue__c"], errors='coerce').round(2)
-    if "Item_Cost__c" in df.columns:
-        df["Item_Cost__c"] = pd.to_numeric(df["Item_Cost__c"], errors='coerce').round(2)
+    df ["Quantity"]=0
+    df ["Line Total"]=0
+    df ["Line Subtotal"]=0
+    
+    for _ , row in modified_df.iterrows():
+        index = df[df['order_item_id'] == row['order_item_id']].index
+        if row['meta_key'] == '_qty':
+            df.at[index, 'Quantity'] = row['meta_value']
+        elif row['meta_key'] == '_line_subtotal':
+            df.at[index, 'Line Subtotal'] = row['meta_value']
+        elif row['meta_key'] == '_line_total':
+            df.at[index, 'Line Total'] = row['meta_value']
     
     # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
