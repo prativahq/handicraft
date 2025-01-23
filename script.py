@@ -435,7 +435,7 @@ def process_and_save_order_items(changes):
     # Query order items and related metadata
     query = f"""
         select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi 
-        inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total')
+        inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total') and oi.order_id in ({', '.join(['%s'] * len(ids))})
     """
     
     # Debug log query
@@ -446,7 +446,7 @@ def process_and_save_order_items(changes):
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
     mycursor = mydb.cursor(dictionary=True)
-    mycursor.execute(query)
+    mycursor.execute(query,ids)
     results = mycursor.fetchall()
     # logging.info(f"Query results: {results}")
 
@@ -459,7 +459,7 @@ def process_and_save_order_items(changes):
     modified_query = f"""
         select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
     """
-    mycursor.execute(modified_query)
+    mycursor.execute(modified_query, unique_ids)
     modified_query = mycursor.fetchall()
         
     modified_df = pd.DataFrame(modified_query)
