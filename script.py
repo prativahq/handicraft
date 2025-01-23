@@ -475,7 +475,8 @@ def process_and_save_order_items(changes):
     df ["Line Subtotal"]=0
     
     for _ , row in modified_df.iterrows():
-        index= df[df["order_item_id"]== row["order_item_id"]].index
+        index= df[df["order_item_id"]== row["order_item_id"]].index[0]
+        logging.info(f"Index is {index}")
         if row['meta_key'] == '_qty':
             # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_qty')].index
             df.at[index, 'Quantity'] = row['meta_value']
