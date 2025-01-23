@@ -457,34 +457,10 @@ def process_and_save_order_items(changes):
     # Debug log
     logging.info(f"DataFrame columns: {df.columns.tolist()}")
         
-    # Select and rename columns only if they exist
-    required_columns = ["order_id", "quantity", "revenue", "total"]
-    existing_columns = [col for col in required_columns if col in df.columns]
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    
-    if missing_columns:
-        logging.info(f"Missing required columns: {missing_columns}")
-    
-    if not existing_columns:
-        logging.info("Required columns not found in data")
-        return
         
-    df = df[existing_columns]
-    df = df.map(convert)
+    # df = df.map(convert)
     
-    # Rename columns to match Salesforce fields
-    column_mapping = {
-        "order_id": "Parent_Order_Number__c",
-        "quantity": "Item_Quantity__c",
-        "revenue": "Net_Revenue__c",
-        "total": "Item_Cost__c",
-    }
-    
-    df.rename(
-        columns={k: v for k, v in column_mapping.items() if k in df.columns},
-        inplace=True,
-        errors="ignore"
-    )
+
     
     # Convert numeric fields if they exist
     if "Net_Revenue__c" in df.columns:
