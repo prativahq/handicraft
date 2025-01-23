@@ -476,13 +476,13 @@ def process_and_save_order_items(changes):
     
     for _ , row in modified_df.iterrows():
         if row['meta_key'] == '_qty':
-            index = df[df['order_item_id'] == row['order_item_id'] and df['meta_key']=='_qty'].index
+            index = df[(df['order_item_id'] == row['order_item_id']) & (df['meta_key']=='_qty')].index
             df.at[index, 'Quantity'] = row['meta_value']
         elif row['meta_key'] == '_line_subtotal':
-            index = df[df['order_item_id'] == row['order_item_id'] and df['meta_key']=='_line_subtotal'].index
+            index = df[(df['order_item_id'] == row['order_item_id']) & (df['meta_key']=='_line_subtotal')].index
             df.at[index, 'Line Subtotal'] = row['meta_value']
         elif row['meta_key'] == '_line_total':
-            index = df[df['order_item_id'] == row['order_item_id'] and df['meta_key']=='_line_total'].index
+            index = df[(df['order_item_id'] == row['order_item_id']) & (df['meta_key']=='_line_total')].index
             df.at[index, 'Line Total'] = row['meta_value']
     
     # Additional transformations
