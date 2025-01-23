@@ -409,7 +409,7 @@ def process_and_save_orders(changes):
         'wc-cancelled': 'Cancelled'
     }
     # Map status and filter invalid ones
-    df['Order_Status__c'] = df['post_status'].map(WC_STATUS_MAPPING)
+    df['Order_Status__c'] = df['Order_Status__c'].map(WC_STATUS_MAPPING)
 
     # Remove rows with invalid status
     df = df[df['Order_Status__c'].notna()]
