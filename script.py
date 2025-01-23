@@ -444,7 +444,7 @@ def process_and_save_order_items(changes):
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
     mycursor = mydb.cursor(dictionary=True)
-    mycursor.execute(query)
+    mycursor.execute(query, ids)
     results = mycursor.fetchall()
     if not results:
         logging.info("No order items found")
