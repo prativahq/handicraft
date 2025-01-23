@@ -438,6 +438,7 @@ def process_and_save_order_items(changes):
             oi.order_id,
             oi.order_item_id,
             oi.order_item_name,
+            oim.meta_id,
             MAX(CASE WHEN oim.meta_key = '_qty' THEN oim.meta_value END) AS quantity,
             MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN oim.meta_value END) AS revenue,
             MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END) AS total
@@ -445,7 +446,7 @@ def process_and_save_order_items(changes):
         LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
         WHERE oi.order_id IN ({', '.join(['%s'] * len(ids))})
         AND oi.order_item_type = 'line_item'
-        GROUP BY oi.order_id, oi.order_item_id, oi.order_item_name
+        GROUP BY oi.order_id, oi.order_item_id, oi.order_item_name, oim.meta_id
     """
     
     # Debug log query
@@ -469,7 +470,7 @@ def process_and_save_order_items(changes):
     logging.info(f"DataFrame columns: {df.columns.tolist()}")
         
     # Select and rename columns only if they exist
-    required_columns = ["order_id", "order_item_id", "quantity", "revenue", "total"]
+    required_columns = ["order_id", "quantity", "revenue", "total"]
     existing_columns = [col for col in required_columns if col in df.columns]
     
     if not existing_columns:
