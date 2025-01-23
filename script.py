@@ -473,8 +473,11 @@ def process_and_save_order_items(changes):
     existing_columns = [col for col in required_columns if col in df.columns]
     missing_columns = [col for col in required_columns if col not in df.columns]
     
+    if missing_columns:
+        logging.info(f"Missing required columns: {missing_columns}")
+    
     if not existing_columns:
-        logging.info("Required columns not found in data", missing_columns)
+        logging.info("Required columns not found in data")
         return
         
     df = df[existing_columns]
