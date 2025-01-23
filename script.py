@@ -433,7 +433,7 @@ def process_and_save_order_items(changes):
     ids = [change["id"] for change in changes]
     
     # Query order items and related metadata
-    query = """
+    query = f"""
         SELECT 
             oi.order_id,
             oi.order_item_id,
@@ -444,10 +444,10 @@ def process_and_save_order_items(changes):
             MAX(CASE WHEN oim.meta_key = '_created_via' THEN oim.meta_value END) AS source
         FROM 7903_woocommerce_order_items oi
         LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
-        WHERE oi.order_id IN ({})
+        WHERE oi.order_id IN ({', '.join(['%s'] * len(ids))})
         AND oi.order_item_type = 'line_item'
         GROUP BY oi.order_id, oi.order_item_id, oi.order_item_name
-    """.format(', '.join(['%s'] * len(ids)))
+    """
     
     # Debug log query
     logging.info(f"Executing query: {query}")
