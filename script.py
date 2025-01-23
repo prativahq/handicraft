@@ -433,31 +433,8 @@ def process_and_save_order_items(changes):
     ids = [change["id"] for change in changes]
     
     # Query order items and related metadata
-    # query = f"""
-    #    SELECT 
-    #        oi.order_id,
-     #       oi.order_item_id,
-     #       oi.order_item_name,
-     #       MAX(CASE WHEN oim.meta_key = '_qty' THEN oim.meta_value END) AS quantity,
-     #       MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN oim.meta_value END) AS revenue,
-     #       MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END) AS total
-     #   FROM 7903_woocommerce_order_items oi
-     #   LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
-     #   WHERE oi.order_id IN ({', '.join(['%s'] * len(ids))})
-      #  AND oi.order_item_type = 'line_item'
-      #"""
-    # Query order items and related metadata
     query = f"""
-        SELECT 
-            oi.order_id,
-            oi.order_item_id,
-            oi.order_item_name,
-            oim.meta_key,
-            oim.meta_value
-        FROM 7903_woocommerce_order_items oi
-        LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
-        WHERE oi.order_id IN ({', '.join(['%s'] * len(ids))})
-        AND oi.order_item_type = 'line_item'
+        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from `7903_woocommerce_order_items` oi inner join `7903_woocommerce_order_itemmeta` om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total');
     """
     
     # Debug log query
