@@ -487,6 +487,22 @@ def process_and_save_order_items(changes):
             # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_total')].index
             df.at[index, 'Line Total'] = row['meta_value']
     
+    df.drop(columns=['order_item_id'], inplace=True)
+    
+    df["Line Total"] = pd.to_numeric(df["Line Total"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99)
+    df["Line Subtotal"] = pd.to_numeric(df["Line Subtotal"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99)
+    
+    df.rename(
+        columns={
+            "order_id": "Parent_Order_Number__c",
+            "Quantity": "Item_Quantity__c",
+            "Line Subtotal": "Net_Revenue__c",
+            "Line Total": "Item_Cost__c	",
+        },
+        inplace=True,
+        errors="ignore"
+    )
+    
     # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Ken_s_Field__c"] = False
