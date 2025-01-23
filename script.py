@@ -437,6 +437,7 @@ def process_and_save_order_items(changes):
         SELECT 
             oi.order_id,
             oi.order_item_id,
+            oi.order_item_name,
             MAX(CASE WHEN oim.meta_key = '_qty' THEN oim.meta_value END) AS quantity,
             MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN oim.meta_value END) AS revenue,
             MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END) AS total,
@@ -445,8 +446,11 @@ def process_and_save_order_items(changes):
         LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
         WHERE oi.order_id IN ({})
         AND oi.order_item_type = 'line_item'
-        GROUP BY oi.order_id, oi.order_item_id
+        GROUP BY oi.order_id, oi.order_item_id, oi.order_item_name
     """.format(', '.join(['%s'] * len(ids)))
+    
+    # Debug log query
+    logging.info(f"Executing query: {query}")
     
     # Database connection
     mydb = mysql.connector.connect(
@@ -463,28 +467,39 @@ def process_and_save_order_items(changes):
     df = pd.DataFrame(results)
     
     # Debug log
-    logging.info(f"Processing {len(df)} records")
+    logging.info(f"DataFrame columns: {df.columns.tolist()}")
+        
+    # Select and rename columns only if they exist
+    required_columns = ["order_id", "order_item_id", "quantity", "revenue", "total", "source"]
+    existing_columns = [col for col in required_columns if col in df.columns]
     
-    df = df[["order_id", "order_item_id", "quantity", "revenue", "total", "source"]]
+    if not existing_columns:
+        logging.info("Required columns not found in data")
+        return
+        
+    df = df[existing_columns]
     df = df.map(convert)
     
     # Rename columns to match Salesforce fields
+    column_mapping = {
+        "order_id": "Parent_Order_Number__c",
+        "quantity": "Item_Quantity__c",
+        "revenue": "Net_Revenue__c",
+        "total": "Item_Cost__c",
+        "source": "Created_Via__c",
+    }
+    
     df.rename(
-        columns={
-            "order_id": "Parent_Order_Number__c",
-            "quantity": "Item_Quantity__c",
-            "revenue": "Net_Revenue__c",
-            "total": "Item_Cost__c",
-            "source": "Created_Via__c",
-        },
+        columns={k: v for k, v in column_mapping.items() if k in df.columns},
         inplace=True,
         errors="ignore"
     )
     
-    # Convert to numeric and format for Salesforce numeric(16,2)
-    df["Net_Revenue__c"] = (pd.to_numeric(df["Net_Revenue__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
-    df["Item_Cost__c"] = (pd.to_numeric(df["Item_Cost__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
-    
+    # Convert numeric fields if they exist
+    if "Net_Revenue__c" in df.columns:
+        df["Net_Revenue__c"] = pd.to_numeric(df["Net_Revenue__c"], errors='coerce').round(2)
+    if "Item_Cost__c" in df.columns:
+        df["Item_Cost__c"] = pd.to_numeric(df["Item_Cost__c"], errors='coerce').round(2)
     
     # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
