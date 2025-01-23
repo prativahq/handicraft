@@ -440,8 +440,7 @@ def process_and_save_order_items(changes):
             oi.order_item_name,
             MAX(CASE WHEN oim.meta_key = '_qty' THEN oim.meta_value END) AS quantity,
             MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN oim.meta_value END) AS revenue,
-            MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END) AS total,
-            MAX(CASE WHEN oim.meta_key = '_created_via' THEN oim.meta_value END) AS source
+            MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END) AS total
         FROM 7903_woocommerce_order_items oi
         LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
         WHERE oi.order_id IN ({', '.join(['%s'] * len(ids))})
@@ -470,7 +469,7 @@ def process_and_save_order_items(changes):
     logging.info(f"DataFrame columns: {df.columns.tolist()}")
         
     # Select and rename columns only if they exist
-    required_columns = ["order_id", "order_item_id", "quantity", "revenue", "total", "source"]
+    required_columns = ["order_id", "order_item_id", "quantity", "revenue", "total"]
     existing_columns = [col for col in required_columns if col in df.columns]
     
     if not existing_columns:
@@ -486,7 +485,6 @@ def process_and_save_order_items(changes):
         "quantity": "Item_Quantity__c",
         "revenue": "Net_Revenue__c",
         "total": "Item_Cost__c",
-        "source": "Created_Via__c",
     }
     
     df.rename(
