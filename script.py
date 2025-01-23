@@ -431,11 +431,12 @@ def process_and_save_order_items(changes):
     
     # Extract order IDs
     ids = [change["id"] for change in changes]
+    logging.info(f"Ids are {ids}")
     
     # Query order items and related metadata
     query = f"""
-        select oi.order_id, oi.order_item_id, om.meta_key, om.meta_value from 7903_woocommerce_order_items oi 
-        inner join 7903_woocommerce_order_itemmeta om on om.order_item_id = oi.order_item_id and oi.order_item_type = 'line_item' and om.meta_key in ('_qty', '_line_subtotal', '_line_total') and oi.order_id in ({', '.join(['%s'] * len(ids))})
+        select oi.order_id, oi.order_item_id from 7903_woocommerce_order_items oi 
+        where oi.order_item_type = 'line_item' and oi.order_item_id in ({', '.join(['%s'] * len(ids))})
     """
     
     # Debug log query
