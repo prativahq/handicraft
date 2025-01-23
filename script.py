@@ -437,10 +437,10 @@ def process_and_save_order_items(changes):
         SELECT 
             oi.order_id,
             oi.order_item_id,
-            MAX(CASE WHEN oim.meta_key = '_qty' THEN CAST(oim.meta_value AS SIGNED) END) AS Item_Quantity__c,
-            MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN CAST(oim.meta_value AS DECIMAL(16,2)) END) AS Net_Revenue__c,
-            MAX(CASE WHEN oim.meta_key = '_line_total' THEN CAST(oim.meta_value AS DECIMAL(16,2)) END) AS Item_Total__c,
-            MAX(CASE WHEN oim.meta_key = '_created_via' THEN CAST(oim.meta_value AS SIGNED) END) AS Created_Via__c
+            MAX(CASE WHEN oim.meta_key = '_qty' THEN oim.meta_value END) AS quantity,
+            MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN oim.meta_value END) AS revenue,
+            MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END) AS total,
+            MAX(CASE WHEN oim.meta_key = '_created_via' THEN oim.meta_value END) AS source
         FROM 7903_woocommerce_order_items oi
         LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
         WHERE oi.order_id IN ({})
@@ -460,18 +460,29 @@ def process_and_save_order_items(changes):
     # Convert to DataFrame
     df = pd.DataFrame(results)
     
+    # Debug log
+    logging.info(f"Processing {len(df)} records")
+    
+    df = df[["order_id", "order_item_id", "quantity", "revenue", "total", "source"]]
+    df = df.map(convert)
+    
     # Rename columns to match Salesforce fields
     df.rename(
         columns={
             "order_id": "Parent_Order_Number__c",
-            "Item_Quantity__c": "Item_Quantity__c",
-            "Net_Revenue__c": "Net_Revenue__c",
-            "Item_Total__c": "Item_Cost__c",
-            "Created_Via__c": "Created_Via__c",
+            "quantity": "Item_Quantity__c",
+            "revenue": "Net_Revenue__c",
+            "total": "Item_Cost__c",
+            "source": "Created_Via__c",
         },
         inplace=True,
         errors="ignore"
     )
+    
+    # Convert to numeric and format for Salesforce numeric(16,2)
+    df["Net_Revenue__c"] = (pd.to_numeric(df["Net_Revenue__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
+    df["Item_Cost__c"] = (pd.to_numeric(df["Item_Cost__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
+    
     
     # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
