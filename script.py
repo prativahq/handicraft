@@ -448,7 +448,7 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query,ids)
     results = mycursor.fetchall()
-    # logging.info(f"Query results: {results}")
+    logging.info(f"Query results: {results}")
 
     # Convert to DataFrame
     df = pd.DataFrame(results)
