@@ -363,7 +363,9 @@ def process_and_save_orders(changes):
             p.ID, p.post_author, p.post_date, p.post_status, 
             p.post_excerpt,
             MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
-            MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via
+            MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via,
+            MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) as payment_method,
+            MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total
         FROM 7903_posts p
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
@@ -391,7 +393,9 @@ def process_and_save_orders(changes):
             "post_status": "Order_Status__c",
             "post_excerpt": "Customer_Note__c",
             "transaction_id": "Transaction_ID__c",
-            "created_via": "Source__c"
+            "created_via": "Source__c",
+            "payment_method": "Payment_Method__c",
+            "order_total": "Order_Total_Value__c",
         },
         inplace=True,
         errors="ignore"
@@ -409,48 +413,82 @@ def process_and_save_orders(changes):
 
     # Remove rows with invalid status
     df = df[df['Order_Status__c'].notna()]
-    # Clean up status field
-    df['Order_Status__c'] = df['Order_Status__c'].str.replace('wc-', '')
+
     # Format date as YYYY-MM-DD for Salesforce Date field
     df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')
+    
+    # Convert to numeric and format for Salesforce numeric(16,2)
+    df["Order_Total_Value__c"] = (pd.to_numeric(df["Order_Total_Value__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
 
     df = df.fillna("")
     df = df.map(convert)
     logging.info("Final Order DataFrame")
-    logging.info(df)
+    logging.info(df).to_dict('records')
     upload_data(df, "HC_Order__c",changes)
 
     # update_processed_flags(changes)
 
 def process_and_save_order_items(changes):
-    if changes is None or len(changes) == 0:
+    if not changes:
         return
+    
+    # Extract order IDs
     ids = [change["id"] for change in changes]
-    query = f"""SELECT * FROM 7903_wc_order_product_lookup WHERE order_id IN ({', '.join(['%s'] * len(ids))})"""
+    
+    # Query order items and related metadata
+    query = """
+        SELECT 
+            oi.order_id,
+            oi.order_item_id,
+            MAX(CASE WHEN oim.meta_key = '_qty' THEN CAST(oim.meta_value AS SIGNED) END) AS Item_Quantity__c,
+            MAX(CASE WHEN oim.meta_key = '_line_subtotal' THEN CAST(oim.meta_value AS DECIMAL(16,2)) END) AS Net_Revenue__c,
+            MAX(CASE WHEN oim.meta_key = '_line_total' THEN CAST(oim.meta_value AS DECIMAL(16,2)) END) AS Item_Total__c,
+            MAX(CASE WHEN oim.meta_key = '_created_via' THEN CAST(oim.meta_value AS SIGNED) END) AS Created_Via__c
+        FROM 7903_woocommerce_order_items oi
+        LEFT JOIN 7903_woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
+        WHERE oi.order_id IN ({})
+        AND oi.order_item_type = 'line_item'
+        GROUP BY oi.order_id, oi.order_item_id
+    """.format(', '.join(['%s'] * len(ids)))
+    
+    # Database connection
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
-    mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
+    mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query, ids)
     results = mycursor.fetchall()
-    mydb.close()  # Close the connection as soon as we're done
+    mydb.close()
 
+    # Convert to DataFrame
     df = pd.DataFrame(results)
-    logging.info(f"Processing {len(df)} records")
-
-    df = df[["product_quantity"]]
+    
+    # Rename columns to match Salesforce fields
     df.rename(
-        columns={"product_quantity": "Item_Quantity__c"}, inplace=True, errors="ignore"
+        columns={
+            "order_id": "Parent_Order_Number__c",
+            "Item_Quantity__c": "Item_Quantity__c",
+            "Net_Revenue__c": "Net_Revenue__c",
+            "Item_Total__c": "Item_Cost__c",
+            "Created_Via__c": "Created_Via__c",
+        },
+        inplace=True,
+        errors="ignore"
     )
-    df["Ken_s_Field__c"] = False
+    
+    # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
-
+    df["Ken_s_Field__c"] = False
+    
+    # Fill and convert
     df = df.fillna("")
     df = df.map(convert)
-
-    upload_data(df, "HC_Order_Item__c",changes)
-
-    # update_processed_flags(changes)
+    
+    logging.info("Final Order Item DataFrame")
+    logging.info(df).to_dict('records')
+    
+    # Upload to Salesforce
+    upload_data(df, "HC_Order_Item__c", changes)
 
 
 def process_and_save_product(changes):
@@ -703,7 +741,7 @@ if __name__ == "__main__":
             process_and_save_members(changes_data)
         if table == "7903_posts":
             process_and_save_orders(changes_data)
-        if table == "7903_wc_order_product_lookup":
+        if table == "7903_woocommerce_order_items":
             process_and_save_order_items(changes_data)
         if table == "7903_term_taxonomy":
             process_and_save_teachers(changes_data)
