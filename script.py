@@ -368,6 +368,7 @@ def process_and_save_orders(changes):
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
         AND p.post_type = 'shop_order'
+        AND p.post_status IN ('wc-processing', 'wc-on-hold', 'wc-completed', 'wc-refunded', 'wc-cancelled')
         GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt
     """
     mydb = mysql.connector.connect(
@@ -379,8 +380,9 @@ def process_and_save_orders(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
-    logging.info(f"Processing {len(df)} records")
-
+    # Debug log
+    logging.info("DataFrame columns:")
+    logging.info(df.columns.tolist())
     df.rename(
         columns={
             "ID": "Order_Number__c",
@@ -394,6 +396,19 @@ def process_and_save_orders(changes):
         inplace=True,
         errors="ignore"
     )
+    # Define valid status mappings
+    WC_STATUS_MAPPING = {
+        'wc-processing': 'Processing',
+        'wc-on-hold': 'On Hold', 
+        'wc-completed': 'Completed',
+        'wc-refunded': 'Refunded',
+        'wc-cancelled': 'Cancelled'
+    }
+    # Map status and filter invalid ones
+    df['Order_Status__c'] = df['post_status'].map(WC_STATUS_MAPPING)
+
+    # Remove rows with invalid status
+    df = df[df['Order_Status__c'].notna()]
     # Clean up status field
     df['Order_Status__c'] = df['Order_Status__c'].str.replace('wc-', '')
     # Format date as YYYY-MM-DD for Salesforce Date field
