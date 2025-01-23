@@ -399,7 +399,7 @@ def process_and_save_orders(changes):
         inplace=True,
         errors="ignore"
     )
-    # Define valid status mappings
+
     WC_STATUS_MAPPING = {
         'wc-processing': 'Processing',
         'wc-on-hold': 'On Hold', 
