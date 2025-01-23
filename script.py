@@ -29,10 +29,9 @@ load_dotenv()
 
 tables = [
     "7903_wc_customer_lookup",
-    "7903_wc_order_stats",
-    "7903_wc_order_product_lookup",
     "7903_posts",
-    "7903_term_taxonomy",
+    "7903_woocommerce_order_items",
+    "7903_term_taxonomy"
 ]
 
 
@@ -732,9 +731,12 @@ def update_processed_flags(changes):
 if __name__ == "__main__":
     for table in tables:
         changes_data = fetch_changes(table)
-        if changes_data is None:
+        if changes_data is None or len(changes_data) == 0:
+            logging.info(f"No changes found for {table}")
             continue
-        logging.info(f"Processing {table}")
+            
+        logging.info(f"Processing {table} with {len(changes_data)} changes")
+        
         if table == "7903_wc_customer_lookup":
             process_and_save_members(changes_data)
         if table == "7903_posts":
