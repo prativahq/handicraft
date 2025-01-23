@@ -475,14 +475,15 @@ def process_and_save_order_items(changes):
     df ["Line Subtotal"]=0
     
     for _ , row in modified_df.iterrows():
+        index= df[df["order_item_id"]== row["order_item_id"]].index
         if row['meta_key'] == '_qty':
-            index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_qty')].index
+            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_qty')].index
             df.at[index, 'Quantity'] = row['meta_value']
         elif row['meta_key'] == '_line_subtotal':
-            index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_subtotal')].index
+            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_subtotal')].index
             df.at[index, 'Line Subtotal'] = row['meta_value']
         elif row['meta_key'] == '_line_total':
-            index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_total')].index
+            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_total')].index
             df.at[index, 'Line Total'] = row['meta_value']
     
     # Additional transformations
