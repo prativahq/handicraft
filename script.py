@@ -497,7 +497,7 @@ def process_and_save_order_items(changes):
             "order_id": "Parent_Order_Number__c",
             "Quantity": "Item_Quantity__c",
             "Line Subtotal": "Net_Revenue__c",
-            "Line Total": "Item_Cost__c	",
+            "Line Total": "Item_Cost__c",
         },
         inplace=True,
         errors="ignore"
