@@ -454,7 +454,7 @@ def process_and_save_order_items(changes):
     # Convert to DataFrame
     df = pd.DataFrame(results)
     
-    unique_ids = df['order_item_id'].unique()
+    unique_ids = df['order_item_id'].unique().tolist()
     logging.info(f"Unique order item IDs: {unique_ids}")
     
     modified_query = f"""
