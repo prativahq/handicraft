@@ -237,6 +237,90 @@ def upload_data(df, table, changes):
         send_email(result)
         return result
 
+def upload_data_upsert(df, table, changes, externalIdFieldName: str):
+    result = {}
+    result["from_db"] = df.to_dict(orient="records")
+    csv = df.to_csv(index=False, header=True)
+    # logging.info(csv)
+    files = {
+        "job": (
+            None,
+            json.dumps(
+                {
+                    "object": table,
+                    "externalIdFieldName": externalIdFieldName,
+                    "contentType": "CSV",
+                    "operation": "upsert",
+                    "lineEnding": "CRLF" if sys.platform.startswith("win") else "LF",
+                }
+            ),
+            "application/json",
+        ),
+        "content": ("content", csv, "text/csv"),
+    }
+
+    # Fix headers and authentication
+    headers = {
+        "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+        "Accept": "application/json",
+    }
+
+    # Make the request
+    res = requests.post(SALESFORCE_URI, files=files, headers=headers)
+
+    if res.status_code != 200:
+        logging.info(res.text)
+        return
+
+    res = res.json()
+    logging.info(res["id"])
+
+    time.sleep(30)
+    id = res["id"]
+    # cnt = 0
+    while True:
+        res = requests.get(
+            f"{SALESFORCE_URI}/{id}",
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+            },
+        )
+
+        res = res.json()
+        logging.info(res)
+        # if cnt == 3:
+        #     logging.info("Failed to upload data")
+        #     break
+        # cnt += 1
+        if res["state"] == "InProgress" or res["state"] == "UploadComplete":
+            time.sleep(30)
+            continue
+
+        if res["numberRecordsFailed"] > 0:
+            res = requests.get(
+                f"{SALESFORCE_URI}/{id}/failedResults",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+                    "Accept": "text/csv",
+                },
+            )
+            result["failed"] = res.text
+
+        res = requests.get(
+            f"{SALESFORCE_URI}/{id}/successfulResults",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+                "Accept": "text/csv",
+            },
+        )
+        result["success"] = res.text
+        logging.info(result)
+        update_processed_flags(changes)
+        send_email(result)
+        return result
 
 def fetch_changes(table_name):
     try:
@@ -348,7 +432,7 @@ def process_and_save_members(changes):
     # df["Membership_Plan__c"] = "Active Member"
 
     df = df.map(convert)
-    upload_data(df, "HC_Member__c",changes)
+    upload_data_upsert(df, "HC_Member__c", changes, "Member_ID__c")
 
     # update_processed_flags(changes)
 
