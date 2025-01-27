@@ -873,11 +873,9 @@ if __name__ == "__main__":
         if table == "7903_wc_customer_lookup":
             process_and_save_members(changes_data)
         if table == "7903_posts":
-            # process_and_save_orders(changes_data)
-            pass
+            process_and_save_orders(changes_data)
         if table == "7903_woocommerce_order_items":
-            #  process_and_save_order_items(changes_data)
-            pass
+            process_and_save_order_items(changes_data)
         if table == "7903_term_taxonomy":
             process_and_save_teachers(changes_data)
         if table == "7903_posts":
