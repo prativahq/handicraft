@@ -443,13 +443,14 @@ def process_and_save_orders(changes):
     ids = [change["id"] for change in changes]
     query = f"""
         SELECT 
-            p.ID, p.post_author, p.post_date, p.post_excerpt, p.post_status,
+            p.ID, p.post_author, c.customer_id as member_id, p.post_date, p.post_excerpt, p.post_status,
             MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
             MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via,
             MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) as payment_method,
             MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total
         FROM 7903_posts p
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
+        LEFT JOIN 7903_wc_customer_lookup c ON p.post_author = c.user_id
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
         AND p.post_status IN ('wc-processing', 'wc-on-hold', 'wc-completed', 'wc-refunded', 'wc-cancelled')
         AND p.post_type = 'shop_order'
@@ -470,7 +471,7 @@ def process_and_save_orders(changes):
     df.rename(
         columns={
             "ID": "Order_Number__c",
-            "post_author": "Member_ID__c",
+            "member_id": "Member_ID__c",
             "post_date": "Order_Date__c",
             "post_status": "Order_Status__c",
             "post_excerpt": "Customer_Note__c",
@@ -602,7 +603,9 @@ def process_and_save_order_items(changes):
     logging.info(df)
     
     # Upload to Salesforce
-    upload_data(df, "HC_Order_Item__c", changes)
+    # upload_data(df, "HC_Order_Item__c", changes)
+    upload_data_upsert(df, "HC_Order_Item__c", changes, "Parent_Order_Number__c")
+
 
 
 def process_and_save_product(changes):
