@@ -510,7 +510,11 @@ def process_and_save_orders(changes):
         'wc-refunded': 'Refunded',
         'wc-cancelled': 'Cancelled'
     }
-    # Map status and filter invalid ones
+    # Check if Order_Status__c exists before mapping
+    if 'Order_Status__c' not in df.columns:
+            logging.error(f"Order_Status__c column not found. Available columns: {df.columns.tolist()}")
+            return
+            
     df['Order_Status__c'] = df['Order_Status__c'].map(WC_STATUS_MAPPING)
 
     # Remove rows with invalid status
