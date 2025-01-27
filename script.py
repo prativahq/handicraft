@@ -31,7 +31,8 @@ tables = [
     "7903_wc_customer_lookup",
     "7903_posts",
     "7903_woocommerce_order_items",
-    "7903_term_taxonomy"
+    "7903_term_taxonomy",
+    "7903_woocommerce_order_itemmeta"
 ]
 
 
@@ -443,7 +444,7 @@ def process_and_save_orders(changes):
     ids = [change["id"] for change in changes]
     query = f"""
         SELECT 
-            p.ID, p.post_author, c.customer_id as member_id, p.post_date, p.post_excerpt, p.post_status,
+            p.ID, c.customer_id as member_id, p.post_date, p.post_excerpt, p.post_status,
             MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
             MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via,
             MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) as payment_method,
@@ -511,7 +512,8 @@ def process_and_save_orders(changes):
     df = df.map(convert)
     logging.info("Final Order DataFrame")
     logging.info(df)
-    upload_data(df, "HC_Order__c",changes)
+    #upload_data(df, "HC_Order__c",changes)
+    upload_data_upsert(df, "HC_Order__c",changes, "Order_Number__c")
 
 def process_and_save_order_items(changes):
     if not changes:
@@ -546,7 +548,7 @@ def process_and_save_order_items(changes):
     logging.info(f"Unique order item IDs: {unique_ids}")
     
     modified_query = f"""
-        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
+        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
     """
     mycursor.execute(modified_query, unique_ids)
     modified_query = mycursor.fetchall()
@@ -561,6 +563,7 @@ def process_and_save_order_items(changes):
     df ["Quantity"]=0
     df ["Line Total"]=0
     df ["Line Subtotal"]=0
+    df["Product Id"]=0
     
     for _ , row in modified_df.iterrows():
         index= df[df["order_item_id"]== row["order_item_id"]].index[0]
@@ -574,8 +577,10 @@ def process_and_save_order_items(changes):
         elif row['meta_key'] == '_line_total':
             # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_total')].index
             df.at[index, 'Line Total'] = row['meta_value']
+        elif row['meta_key'] == '_product_id':
+            df.at[index, 'Product Id'] = row['meta_value']
     
-    df.drop(columns=['order_item_id'], inplace=True)
+    # df.drop(columns=['order_item_id'], inplace=True)
     
     df["Line Total"] = pd.to_numeric(df["Line Total"], errors='coerce').round(2).map('{:.2f}'.format)
     df["Line Subtotal"] = pd.to_numeric(df["Line Subtotal"], errors='coerce').round(2).map('{:.2f}'.format)
@@ -583,9 +588,11 @@ def process_and_save_order_items(changes):
     df.rename(
         columns={
             "order_id": "Parent_Order_Number__c",
+            "order_item_id": "Order_Item_ID__c",
             "Quantity": "Item_Quantity__c",
             "Line Subtotal": "Net_Revenue__c",
             "Line Total": "Item_Cost__c",
+            "Product Id": "Original_Product_ID"
         },
         inplace=True,
         errors="ignore"
@@ -604,7 +611,7 @@ def process_and_save_order_items(changes):
     
     # Upload to Salesforce
     # upload_data(df, "HC_Order_Item__c", changes)
-    upload_data_upsert(df, "HC_Order_Item__c", changes, "Parent_Order_Number__c")
+    upload_data_upsert(df, "HC_Order_Item__c", changes, "Order_Item_ID__c")
 
 
 
@@ -789,7 +796,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("Final Product DataFrame")
-    logging.info(df[["Product_Identifier__c", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Name", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c"]].to_dict('records'))
     upload_data_upsert(df, "HC_Product__c",changes, "Product_Identifier__c")
     # print("Product uploaded",df)
     # update_processed_flags(changes)
@@ -861,9 +868,12 @@ if __name__ == "__main__":
             process_and_save_members(changes_data)
         if table == "7903_posts":
             process_and_save_orders(changes_data)
-        if table == "7903_woocommerce_order_items":
+            pass
+        if table == "7903_woocommerce_order_items" or table == "7903_woocommerce_order_itemmeta":
             process_and_save_order_items(changes_data)
+            pass
         if table == "7903_term_taxonomy":
-            process_and_save_teachers(changes_data)
+            # process_and_save_teachers(changes_data)
+            pass
         if table == "7903_posts":
             process_and_save_product(changes_data)
