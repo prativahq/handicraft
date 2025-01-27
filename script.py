@@ -453,28 +453,8 @@ def process_and_save_orders(changes):
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
         AND p.post_type = 'shop_order'
-        AND p.post_status IN ('wc-processing', 'wc-on-hold', 'wc-completed', 'wc-refunded', 'wc-cancelled')
         GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt
     """
-
-    # query = f"""
-    #     SELECT 
-    #         p.ID, p.post_author, p.post_date, p.post_status, 
-    #         p.post_excerpt,
-    #         MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
-    #         MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via,
-    #         MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) as payment_method,
-    #         MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total,
-    #         wc.customer_id
-    #     FROM 7903_posts p
-    #     LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
-    #     LEFT JOIN 7903_wc_customer_lookup wc ON p.post_author = wc.user_id
-    #     WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
-    #     AND p.post_type = 'shop_order'
-    #     AND p.post_status IN ('wc-processing', 'wc-on-hold', 'wc-completed', 'wc-refunded', 'wc-cancelled')
-    #     GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt
-    # """
-
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
