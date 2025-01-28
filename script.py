@@ -592,7 +592,7 @@ def process_and_save_order_items(changes):
             "Quantity": "Item_Quantity__c",
             "Line Subtotal": "Net_Revenue__c",
             "Line Total": "Item_Cost__c",
-            "Product Id": "Original_Product_ID"
+            "Product Id": "Original_Product_ID__c"
         },
         inplace=True,
         errors="ignore"
