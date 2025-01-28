@@ -190,7 +190,8 @@ BEGIN
     );
 END
 
-INSERT INTO `trigger_table`
+BEGIN
+    INSERT INTO `trigger_table`
     (
         id,
         created_at,
@@ -205,7 +206,7 @@ INSERT INTO `trigger_table`
         'UPDATE',               -- Operation type
         '7903_wc_customer_lookup', -- Name of the affected table
         0                       -- Default processing status
-    )
+    );
 
 END
 
