@@ -667,12 +667,12 @@ def process_and_save_product(changes):
     day_of_week = mycursor.fetchall()
     
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (287,288,289);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (274,275,276);"
     )
     trimester = mycursor.fetchall()
     
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (291,292,293);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (278, 279, 280, 281, 282, 283, 284, 285);"
     )
     year = mycursor.fetchall()
     
@@ -777,18 +777,23 @@ def process_and_save_product(changes):
             trimester.set_index("object_id")["cat"].to_dict()
         ).map(
             {
-                287: "Winter",
-                288: "Spring",
-                289: "Summer",
+                274: "Winter",
+                275: "Spring",
+                276: "Summer",
             }
         )
     df["Year__c"] = df["Product_Identifier__c"].map(
             year.set_index("object_id")["cat"].to_dict()
         ).map(
             {
-                291: "2023",
-                292: "2024",
-                293: "2025",
+                278: "2023",
+                279: "2024",
+                280: "2025",
+                281: "2026",
+                282: "2027",
+                283: "2028",
+                284: "2029",
+                285: "2030",
             }
         )
 
