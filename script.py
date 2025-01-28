@@ -18,7 +18,7 @@ class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
             return str(obj)
-        return super().default(obj)
+        return super(DecimalEncoder, self).default(obj)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
