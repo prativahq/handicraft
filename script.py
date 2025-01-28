@@ -831,7 +831,7 @@ def process_and_save_teachers(changes):
     df = df.fillna("")
     df = df.map(convert)
 
-    upload_data(df, "HC_Teacher__c",changes, "Id__c")
+    upload_data_upsert(df, "HC_Teacher__c",changes, "Id__c")
 
     # update_processed_flags(changes)
 
