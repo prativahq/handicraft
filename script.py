@@ -361,7 +361,7 @@ def process_and_save_members(changes):
         SELECT 
             wcl.*,
             um.meta_value as phone,
-            p.ID as membership_plan
+            p.post_parent as membership_plan
         FROM 
             7903_wc_customer_lookup wcl
         LEFT JOIN 
@@ -413,23 +413,26 @@ def process_and_save_members(changes):
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Member_Status__c"] = "Active"
     df["State__c"] = df["State__c"].map(states)
-    print(df["Plan__c"])
-    df["Plan__c"] = df["Plan__c"].map(
-        {
-            411: "Active Member",
-            6510: "Active Member - Emeritus",
-            6511: "Active Member - Out of Town",
-            6514: "Active Member - Senior",
-            7478: "Active Member - Staff",
-            413: "Guest",
-            412: "Guests with Provisional Status (GPS)",
-            7472: "Leave of Absence (LOA)",
-            7385: "Resigned - Bad",
-            7384: "Resigned - Good",
-            7386: "Deceased",
-            None: "Guest",
-        }
-    )
+    
+    membership_types = {
+        411: "Active Member",
+        6510: "Active Member - Emeritus",
+        6511: "Active Member - Out of Town",
+        6514: "Active Member - Senior",
+        7478: "Active Member - Staff",
+        413: "Guest",
+        412: "Guests with Provisional Status (GPS)",
+        7472: "Leave of Absence (LOA)",
+        7385: "Resigned - Bad",
+        7384: "Resigned - Good",
+        7386: "Deceased",
+        None: "Guest"
+    }
+    
+    logging.info(f"Plan__c values before mapping: {df['Plan__c'].unique()}")
+    df["Plan__c"] = df["Plan__c"].map(membership_types)
+    logging.info(f"Plan__c values after mapping: {df['Plan__c'].unique()}")
+    
     df = df.fillna("")
     # df["Membership_Plan__c"] = "Active Member"
 
