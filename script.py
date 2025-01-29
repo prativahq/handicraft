@@ -619,7 +619,7 @@ def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT p.*, opl.max_price
+    query = f"""SELECT p.*, opl.max_price, opl.stock_quantity
             FROM 7903_posts AS p
             LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
             WHERE p.post_type IN ('product', 'product_variation')
@@ -699,7 +699,7 @@ def process_and_save_product(changes):
     
     logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type", "stock_quantity"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -709,6 +709,7 @@ def process_and_save_product(changes):
             "max_price": "Regular_Price__c",
             "post_parent":"Post_Parent__c",
             "post_type":"Product_Type__c",
+            "stock_quantity":"Available_Stock__c"
         },
         inplace=True,
         errors="ignore",
@@ -801,7 +802,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("Final Product DataFrame")
-    logging.info(df[["Product_Identifier__c", "Name", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c"]].to_dict('records'))
+    logging.info(df[["Product_Identifier__c", "Name", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c","Available_Stock__c"]].to_dict('records'))
     upload_data_upsert(df, "HC_Product__c",changes, "Product_Identifier__c")
     # print("Product uploaded",df)
     # update_processed_flags(changes)
