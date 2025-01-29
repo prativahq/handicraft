@@ -434,7 +434,8 @@ def process_and_save_members(changes):
 
     df = df.map(convert)
     logging.info("Final Member DataFrame")
-    logging.info(df["Plan__c", "Member_ID__c","First"])
+    # logging.info(df["Plan__c", "Member_ID__c","First"])
+    logging.info(df)
     upload_data_upsert(df, "HC_Member__c", changes, "Member_ID__c")
 
     # update_processed_flags(changes)
