@@ -428,10 +428,7 @@ def process_and_save_members(changes):
         7386: "Deceased",
         None: "Guest"
     }
-    
-    logging.info(f"Plan__c values before mapping: {df['Plan__c'].unique()}")
     df["Plan__c"] = df["Plan__c"].map(membership_types)
-    logging.info(f"Plan__c values after mapping: {df['Plan__c'].unique()}")
     
     df = df.fillna("")
     # df["Membership_Plan__c"] = "Active Member"
