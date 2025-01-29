@@ -379,8 +379,8 @@ def process_and_save_members(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
-    # logging.info(f"Processing {len(df)} records")
-    # logging.info(df)
+    logging.info(f"Processing {len(df)} records")
+    logging.info(df)
 
     df = df[
         [
@@ -434,7 +434,7 @@ def process_and_save_members(changes):
 
     df = df.map(convert)
     logging.info("Final Member DataFrame")
-    logging.info(df)
+    logging.info(df["Plan__c", "Member_ID__c","First"])
     upload_data_upsert(df, "HC_Member__c", changes, "Member_ID__c")
 
     # update_processed_flags(changes)
