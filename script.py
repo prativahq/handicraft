@@ -416,9 +416,9 @@ def process_and_save_members(changes):
     df["Membership_Plan__c"] = df["Membership_Plan__c"].map(
         {
             411: "Active Member",
-            6510: "Active Mernber - Emeritus",
+            6510: "Active Member - Emeritus",
             6511: "Active Member - Out of Town",
-            6514: "Active Mernber - Senior",
+            6514: "Active Member - Senior",
             7478: "Active Member - Staff",
             413: "Guest",
             412: "Guests with Provisional Status (GPS)",
@@ -426,7 +426,7 @@ def process_and_save_members(changes):
             7385: "Resigned - Bad",
             7384: "Resigned - Good",
             7386: "Deceased",
-            None: "Active Member",
+            None: "Guest",
         }
     )
     df = df.fillna("")
