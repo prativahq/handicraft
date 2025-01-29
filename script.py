@@ -270,11 +270,11 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str):
     res = requests.post(SALESFORCE_URI, files=files, headers=headers)
 
     if res.status_code != 200:
-        logging.info(res.text)
+        # logging.info(res.text)
         return
 
     res = res.json()
-    logging.info(res["id"])
+    # logging.info(res["id"])
 
     time.sleep(30)
     id = res["id"]
@@ -289,7 +289,7 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str):
         )
 
         res = res.json()
-        logging.info(res)
+        # logging.info(res)
         # if cnt == 3:
         #     logging.info("Failed to upload data")
         #     break
@@ -318,7 +318,7 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str):
             },
         )
         result["success"] = res.text
-        logging.info(result)
+        # logging.info(result)
         update_processed_flags(changes)
         send_email(result)
         return result
@@ -379,8 +379,8 @@ def process_and_save_members(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
-    logging.info(f"Processing {len(df)} records")
-    logging.info(df)
+    # logging.info(f"Processing {len(df)} records")
+    # logging.info(df)
 
     df = df[
         [
@@ -433,6 +433,8 @@ def process_and_save_members(changes):
     # df["Membership_Plan__c"] = "Active Member"
 
     df = df.map(convert)
+    logging.info("Final Member DataFrame")
+    logging.info(df)
     upload_data_upsert(df, "HC_Member__c", changes, "Member_ID__c")
 
     # update_processed_flags(changes)
@@ -467,8 +469,8 @@ def process_and_save_orders(changes):
 
     df = pd.DataFrame(results)
     # Debug log
-    logging.info("DataFrame columns:")
-    logging.info(df.columns.tolist())
+    # logging.info("DataFrame columns:")
+    # logging.info(df.columns.tolist())
     df.rename(
         columns={
             "ID": "Order_Number__c",
@@ -493,9 +495,9 @@ def process_and_save_orders(changes):
         'wc-cancelled': 'Cancelled'
     }
     # Check if Order_Status__c exists before mapping
-    if 'Order_Status__c' not in df.columns:
-            logging.error(f"Order_Status__c column not found. Available columns: {df.columns.tolist()}")
-            return
+    # if 'Order_Status__c' not in df.columns:
+    #         logging.error(f"Order_Status__c column not found. Available columns: {df.columns.tolist()}")
+    #         return
             
     df['Order_Status__c'] = df['Order_Status__c'].map(WC_STATUS_MAPPING)
 
@@ -521,7 +523,7 @@ def process_and_save_order_items(changes):
     
     # Extract order IDs
     ids = [change["id"] for change in changes]
-    logging.info(f"Ids are {ids}")
+    # logging.info(f"Ids are {ids}")
     
     # Query order items and related metadata
     query = f"""
@@ -539,13 +541,13 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query,ids)
     results = mycursor.fetchall()
-    logging.info(f"Query results: {results}")
+    # logging.info(f"Query results: {results}")
 
     # Convert to DataFrame
     df = pd.DataFrame(results)
     
     unique_ids = df['order_item_id'].unique().tolist()
-    logging.info(f"Unique order item IDs: {unique_ids}")
+    # logging.info(f"Unique order item IDs: {unique_ids}")
     
     modified_query = f"""
         select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
@@ -555,7 +557,7 @@ def process_and_save_order_items(changes):
         
     modified_df = pd.DataFrame(modified_query)
 
-    logging.info(f"Modified DataFrame: {modified_df}")
+    # logging.info(f"Modified DataFrame: {modified_df}")
     
     mydb.close()
 
@@ -567,7 +569,7 @@ def process_and_save_order_items(changes):
     
     for _ , row in modified_df.iterrows():
         index= df[df["order_item_id"]== row["order_item_id"]].index[0]
-        logging.info(f"Index is {index}")
+        # logging.info(f"Index is {index}")
         if row['meta_key'] == '_qty':
             # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_qty')].index
             df.at[index, 'Quantity'] = row['meta_value']
@@ -697,7 +699,7 @@ def process_and_save_product(changes):
     tags_df = pd.DataFrame(tags)
 
     
-    logging.info(f"Processing {len(df)} records")
+    # logging.info(f"Processing {len(df)} records")
 
     df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type", "stock_quantity"]]
     df = df.map(convert)
@@ -802,7 +804,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("Final Product DataFrame")
-    logging.info(df[["Product_Identifier__c", "Name", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c","Available_Stock__c"]].to_dict('records'))
+    logging.info(df)
     upload_data_upsert(df, "HC_Product__c",changes, "Product_Identifier__c")
     # print("Product uploaded",df)
     # update_processed_flags(changes)
@@ -827,8 +829,8 @@ def process_and_save_teachers(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
-    logging.info(f"Processing {len(df)} records")
-    logging.info(f"Available columns: {df.columns.tolist()}")
+    # logging.info(f"Processing {len(df)} records")
+    # logging.info(f"Available columns: {df.columns.tolist()}")
     
     df = df[["name","term_id"]]
     df.rename(columns={"name": "Name","term_id":"Id__c"}, inplace=True, errors="ignore")
@@ -836,6 +838,9 @@ def process_and_save_teachers(changes):
 
     df = df.fillna("")
     df = df.map(convert)
+    
+    logging.info("Final Teacher DataFrame")
+    logging.info(df)
 
     upload_data_upsert(df, "HC_Teacher__c",changes, "Id__c")
 
