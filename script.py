@@ -270,11 +270,11 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str):
     res = requests.post(SALESFORCE_URI, files=files, headers=headers)
 
     if res.status_code != 200:
-        # logging.info(res.text)
+        logging.info(res.text)
         return
 
     res = res.json()
-    # logging.info(res["id"])
+    logging.info(res["id"])
 
     time.sleep(30)
     id = res["id"]
@@ -318,7 +318,7 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str):
             },
         )
         result["success"] = res.text
-        # logging.info(result)
+        logging.info(result)
         update_processed_flags(changes)
         send_email(result)
         return result
