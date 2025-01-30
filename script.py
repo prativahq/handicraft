@@ -452,14 +452,20 @@ def process_and_save_orders(changes):
             MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
             MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via,
             MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) as payment_method,
-            MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total
+            MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total,
+            MAX(CASE WHEN pm.meta_key = '_customer_user' THEN pm.meta_value END) as customer_user
         FROM 7903_posts p
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
-        LEFT JOIN 7903_wc_customer_lookup c ON p.post_author = c.user_id
+        LEFT JOIN 7903_wc_customer_lookup c ON c.user_id = (
+            SELECT meta_value 
+            FROM 7903_postmeta 
+            WHERE post_id = p.ID 
+            AND meta_key = '_customer_user'
+        )
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
         AND p.post_status IN ('wc-processing', 'wc-on-hold', 'wc-completed', 'wc-refunded', 'wc-cancelled')
         AND p.post_type = 'shop_order'
-        GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt
+        GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt, c.customer_id
     """
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -509,6 +515,8 @@ def process_and_save_orders(changes):
     # Format date as YYYY-MM-DD for Salesforce Date field
     df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')
     
+    df["Completed_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')    
+
     # Convert to numeric and format for Salesforce numeric(16,2)
     df["Order_Total_Value__c"] = (pd.to_numeric(df["Order_Total_Value__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
 
