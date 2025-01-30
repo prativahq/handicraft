@@ -289,7 +289,7 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str):
         )
 
         res = res.json()
-        # logging.info(res)
+        logging.info(res)
         # if cnt == 3:
         #     logging.info("Failed to upload data")
         #     break
