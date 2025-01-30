@@ -452,8 +452,7 @@ def process_and_save_orders(changes):
             MAX(CASE WHEN pm.meta_key = '_transaction_id' THEN pm.meta_value END) as transaction_id,
             MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) as created_via,
             MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) as payment_method,
-            MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total,
-            MAX(CASE WHEN pm.meta_key = '_customer_user' THEN pm.meta_value END) as customer_user
+            MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total
         FROM 7903_posts p
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
         LEFT JOIN 7903_wc_customer_lookup c ON c.user_id = (
