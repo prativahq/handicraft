@@ -613,6 +613,8 @@ def process_and_save_order_items(changes):
             "order_id": "Parent_Order_Number__c",
             "order_item_id": "Order_Item_ID__c",
             "Quantity": "Item_Quantity__c",
+            "Line Total": "Item_Cost__c",
+            "Line Subtotal": "Item_Revenue__c",
             "Product Id": "Original_Product_ID__c"
         },
         inplace=True,
