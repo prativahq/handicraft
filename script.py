@@ -542,17 +542,11 @@ def process_and_save_order_items(changes):
     
     # Extract order IDs
     ids = [change["id"] for change in changes]
-    # logging.info(f"Ids are {ids}")
     
-    # Query order items and related metadata
     query = f"""
         select oi.order_id, oi.order_item_id from 7903_woocommerce_order_items oi 
         where oi.order_item_type = 'line_item' and oi.order_item_id in ({', '.join(['%s'] * len(ids))})
     """
-    
-    # Debug log query
-    # logging.info(f"Executing query: {query}")
-    
     # Database connection
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -560,13 +554,11 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query,ids)
     results = mycursor.fetchall()
-    # logging.info(f"Query results: {results}")
 
     # Convert to DataFrame
     df = pd.DataFrame(results)
     
     unique_ids = df['order_item_id'].unique().tolist()
-    # logging.info(f"Unique order item IDs: {unique_ids}")
     
     modified_query = f"""
         select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
@@ -575,8 +567,6 @@ def process_and_save_order_items(changes):
     modified_query = mycursor.fetchall()
         
     modified_df = pd.DataFrame(modified_query)
-
-    # logging.info(f"Modified DataFrame: {modified_df}")
     
     mydb.close()
 
