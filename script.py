@@ -603,7 +603,7 @@ def process_and_save_order_items(changes):
                        .clip(-99999999999999.99, 99999999999999.99)
                        .map('{:.2f}'.format))
 
-    df["Item_Revenue__c"] = (pd.to_numeric(df["Line Subtotal"], errors='coerce')
+    df["Net_Revenue__c"] = (pd.to_numeric(df["Line Subtotal"], errors='coerce')
                          .round(2)
                          .clip(-99999999999999.99, 99999999999999.99)
                          .map('{:.2f}'.format))
@@ -614,7 +614,7 @@ def process_and_save_order_items(changes):
             "order_item_id": "Order_Item_ID__c",
             "Quantity": "Item_Quantity__c",
             "Line Total": "Item_Cost__c",
-            "Line Subtotal": "Item_Revenue__c",
+            "Line Subtotal": "Net_Revenue__c",
             "Product Id": "Original_Product_ID__c"
         },
         inplace=True,
