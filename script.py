@@ -586,27 +586,16 @@ def process_and_save_order_items(changes):
             df.at[index, 'line_total'] = row['meta_value']
         elif row['meta_key'] == '_product_id':
             df.at[index, 'Product Id'] = row['meta_value']
-            
-    # Convert numeric fields with proper formatting and clipping
-    df["Item_Cost__c"] = (pd.to_numeric(df["line_total"], errors='coerce')  
-                       .round(2)
-                       .clip(-99999999999999.99, 99999999999999.99)
-                       .map('{:.2f}'.format))
-
-    df["Net_Revenue__c"] = (pd.to_numeric(df["line_subtotal"], errors='coerce')
-                         .round(2)
-                         .clip(-99999999999999.99, 99999999999999.99)
-                         .map('{:.2f}'.format))
     
-    # Drop intermediate columns
-    df = df.drop(['line_total', 'line_subtotal'], axis=1)
         
     df.rename(
         columns={
             "order_id": "Parent_Order_Number__c",
             "order_item_id": "Order_Item_ID__c",
             "Quantity": "Item_Quantity__c",
-            "Product Id": "Original_Product_ID__c"
+            "Product Id": "Original_Product_ID__c",
+            "line_total": "Cost__c",
+            "line_subtotal": "Revenue__c"
         },
         inplace=True,
         errors="ignore"
