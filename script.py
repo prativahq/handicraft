@@ -590,34 +590,31 @@ def process_and_save_order_items(changes):
         index= df[df["order_item_id"]== row["order_item_id"]].index[0]
         # logging.info(f"Index is {index}")
         if row['meta_key'] == '_qty':
-            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_qty')].index
             df.at[index, 'Quantity'] = row['meta_value']
         elif row['meta_key'] == '_line_subtotal':
-            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_subtotal')].index
-            df.at[index, 'Line Subtotal'] = row['meta_value']
+            df.at[index, 'Line Subtotal'] = (
+                pd.to_numeric(row['meta_value'], errors='coerce')
+                .round(2).clip(-99999999999999.99, 99999999999999.99)
+                .map('{:.2f}'.format)
+            )
         elif row['meta_key'] == '_line_total':
-            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_total')].index
-            df.at[index, 'Line Total'] = row['meta_value']
+            df.at[index, 'Line Total'] = (
+                pd.to_numeric(row['meta_value'], errors='coerce')
+                .round(2).clip(-99999999999999.99, 99999999999999.99)
+                .map('{:.2f}'.format)
+            )
         elif row['meta_key'] == '_product_id':
             df.at[index, 'Product Id'] = row['meta_value']
     
     # df.drop(columns=['order_item_id'], inplace=True)
-    
-    df["Net_Revenue__c"] = (pd.to_numeric(df["Line Subtotal"], errors='coerce')
-                         .round(2)
-                         .clip(-99999999999999.99, 99999999999999.99)
-                         .map('{:.2f}'.format))
-
-    df["Item_Cost__c"] = (pd.to_numeric(df["Line Total"], errors='coerce')  
-                       .round(2)
-                       .clip(-99999999999999.99, 99999999999999.99)
-                       .map('{:.2f}'.format))
     
     df.rename(
         columns={
             "order_id": "Parent_Order_Number__c",
             "order_item_id": "Order_Item_ID__c",
             "Quantity": "Item_Quantity__c",
+            "Line Total": "Item_Cost__c",
+            "Line Subtotal": "Net_Revenue__c",
             "Product Id": "Original_Product_ID__c"
         },
         inplace=True,
