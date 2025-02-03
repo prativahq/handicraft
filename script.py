@@ -572,8 +572,8 @@ def process_and_save_order_items(changes):
 
     
     df ["Quantity"]=0
-    df ["Line Total"]=0
-    df ["Line Subtotal"]=0
+    df ["line_total"]=0
+    df ["line_subtotal"]=0
     df ["Product Id"]=0
     
     for _, row in modified_df.iterrows():
@@ -581,22 +581,25 @@ def process_and_save_order_items(changes):
         if row['meta_key'] == '_qty':
             df.at[index, 'Quantity'] = row['meta_value']
         elif row['meta_key'] == '_line_subtotal':
-            df.at[index, 'Line Subtotal'] = row['meta_value']
+            df.at[index, 'line_subtotal'] = row['meta_value']
         elif row['meta_key'] == '_line_total':
-            df.at[index, 'Line Total'] = row['meta_value']
+            df.at[index, 'line_total'] = row['meta_value']
         elif row['meta_key'] == '_product_id':
             df.at[index, 'Product Id'] = row['meta_value']
             
     # Convert numeric fields with proper formatting and clipping
-    df["Item_Cost__c"] = (pd.to_numeric(df["Line Total"], errors='coerce')  
+    df["Item_Cost__c"] = (pd.to_numeric(df["line_total"], errors='coerce')  
                        .round(2)
                        .clip(-99999999999999.99, 99999999999999.99)
                        .map('{:.2f}'.format))
 
-    df["Net_Revenue__c"] = (pd.to_numeric(df["Line Subtotal"], errors='coerce')
+    df["Net_Revenue__c"] = (pd.to_numeric(df["line_subtotal"], errors='coerce')
                          .round(2)
                          .clip(-99999999999999.99, 99999999999999.99)
                          .map('{:.2f}'.format))
+    
+    # Drop intermediate columns
+    df = df.drop(['line_total', 'line_subtotal'], axis=1)
         
     df.rename(
         columns={
