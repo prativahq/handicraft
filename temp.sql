@@ -134,6 +134,121 @@ BEGIN
 END
 
 BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.ID,
+        NOW(),
+        'UPDATE',
+        '7903_posts',
+        0
+    );
+END
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.order_item_id,
+        NOW(),
+        'UPDATE',
+        '7903_woocommerce_order_itemmeta',
+        0
+    );
+END
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.term_id,
+        NOW(),
+        'UPDATE',
+        '7903_term_taxonomy',
+        0
+    );
+END
+
+BEGIN
+    INSERT INTO `trigger_table`
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.customer_id,        -- ID of the updated customer
+        NOW(),                  -- Current timestamp
+        'UPDATE',               -- Operation type
+        '7903_wc_customer_lookup', -- Name of the affected table
+        0                       -- Default processing status
+    );
+
+END
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.order_item_id,
+        NOW(),
+        'INSERT',
+        '7903_woocommerce_order_items',
+        0
+    );
+END
+
+BEGIN
+    INSERT INTO trigger_table
+    (
+        id,
+        created_at,
+        operation,
+        table_name,
+        is_processed
+    )
+    VALUES
+    (
+        NEW.order_item_id,
+        NOW(),
+        'UPDATE',
+        '7903_woocommerce_order_items',
+        0
+    );
+END
+
+BEGIN
 	IF (
         OLD.first_name <> NEW.first_name OR
         OLD.last_name <> NEW.last_name OR

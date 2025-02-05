@@ -18,7 +18,7 @@ class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
             return str(obj)
-        return super().default(obj)
+        return super(DecimalEncoder, self).default(obj)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -238,90 +238,100 @@ def upload_data(df, table, changes):
         send_email(result)
         return result
 
-def upload_data_upsert(df, table, changes, externalIdFieldName: str):
-    result = {}
-    result["from_db"] = df.to_dict(orient="records")
-    csv = df.to_csv(index=False, header=True)
-    # logging.info(csv)
-    files = {
-        "job": (
-            None,
-            json.dumps(
-                {
-                    "object": table,
-                    "externalIdFieldName": externalIdFieldName,
-                    "contentType": "CSV",
-                    "operation": "upsert",
-                    "lineEnding": "CRLF" if sys.platform.startswith("win") else "LF",
-                }
+def upload_data_upsert(df, table, changes, externalIdFieldName: str, chunk_size=500):
+    final_result = {
+        "from_db": [],
+        "success": "",
+        "failed": ""
+    }
+
+    # Split DataFrame into chunks
+    for i in range(0, len(df), chunk_size):
+        chunk = df.iloc[i:i+chunk_size]
+        result = {}
+        result["from_db"] = chunk.to_dict(orient="records")
+        csv = chunk.to_csv(index=False, header=True)
+
+        files = {
+            "job": (
+                None,
+                json.dumps(
+                    {
+                        "object": table,
+                        "externalIdFieldName": externalIdFieldName,
+                        "contentType": "CSV",
+                        "operation": "upsert",
+                        "lineEnding": "CRLF" if sys.platform.startswith("win") else "LF",
+                    }
+                ),
+                "application/json",
             ),
-            "application/json",
-        ),
-        "content": ("content", csv, "text/csv"),
-    }
+            "content": ("content", csv, "text/csv"),
+        }
 
-    # Fix headers and authentication
-    headers = {
-        "Authorization": f"Bearer {SALESFORCE_API_KEY}",
-        "Accept": "application/json",
-    }
+        headers = {
+            "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+            "Accept": "application/json",
+        }
 
-    # Make the request
-    res = requests.post(SALESFORCE_URI, files=files, headers=headers)
+        # Make the request
+        res = requests.post(SALESFORCE_URI, files=files, headers=headers)
 
-    if res.status_code != 200:
-        logging.info(res.text)
-        return
-
-    res = res.json()
-    logging.info(res["id"])
-
-    time.sleep(30)
-    id = res["id"]
-    # cnt = 0
-    while True:
-        res = requests.get(
-            f"{SALESFORCE_URI}/{id}",
-            headers={
-                "Accept": "application/json",
-                "Authorization": f"Bearer {SALESFORCE_API_KEY}",
-            },
-        )
-
-        res = res.json()
-        logging.info(res)
-        # if cnt == 3:
-        #     logging.info("Failed to upload data")
-        #     break
-        # cnt += 1
-        if res["state"] == "InProgress" or res["state"] == "UploadComplete":
-            time.sleep(30)
+        if res.status_code != 200:
+            logging.info(f"Chunk upload failed: {res.text}")
             continue
 
-        if res["numberRecordsFailed"] > 0:
+        res = res.json()
+        logging.info(res["id"])
+
+        time.sleep(30)
+        id = res["id"]
+
+        while True:
             res = requests.get(
-                f"{SALESFORCE_URI}/{id}/failedResults",
+                f"{SALESFORCE_URI}/{id}",
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+                },
+            )
+
+            res = res.json()
+            logging.info(res)
+
+            if res["state"] == "InProgress" or res["state"] == "UploadComplete":
+                time.sleep(30)
+                continue
+
+            if res["numberRecordsFailed"] > 0:
+                res = requests.get(
+                    f"{SALESFORCE_URI}/{id}/failedResults",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+                        "Accept": "text/csv",
+                    },
+                )
+                result["failed"] = res.text
+                final_result["failed"] += res.text
+
+            res = requests.get(
+                f"{SALESFORCE_URI}/{id}/successfulResults",
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {SALESFORCE_API_KEY}",
                     "Accept": "text/csv",
                 },
             )
-            result["failed"] = res.text
+            result["success"] = res.text
+            final_result["success"] += res.text
+            final_result["from_db"].extend(result["from_db"])
+            logging.info(result)
+            break
 
-        res = requests.get(
-            f"{SALESFORCE_URI}/{id}/successfulResults",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {SALESFORCE_API_KEY}",
-                "Accept": "text/csv",
-            },
-        )
-        result["success"] = res.text
-        logging.info(result)
-        update_processed_flags(changes)
-        send_email(result)
-        return result
+    update_processed_flags(changes)
+    send_email(final_result)
+    return final_result
 
 def fetch_changes(table_name):
     try:
@@ -361,7 +371,7 @@ def process_and_save_members(changes):
         SELECT 
             wcl.*,
             um.meta_value as phone,
-            p.ID as membership_plan
+            p.post_parent as membership_plan
         FROM 
             7903_wc_customer_lookup wcl
         LEFT JOIN 
@@ -405,7 +415,7 @@ def process_and_save_members(changes):
             "phone": "Primary_Phone__c",
             "state": "State__c",
             "postcode": "Zipcode__c",
-            "membership_plan": "Membership_Plan__c",
+            "membership_plan": "Plan__c",
         },
         inplace=True,
         errors="ignore",
@@ -413,26 +423,30 @@ def process_and_save_members(changes):
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Member_Status__c"] = "Active"
     df["State__c"] = df["State__c"].map(states)
-    df["Membership_Plan__c"] = df["Membership_Plan__c"].map(
-        {
-            411: "Active Member",
-            6510: "Active Mernber - Emeritus",
-            6511: "Active Member - Out of Town",
-            6514: "Active Mernber - Senior",
-            7478: "Active Member - Staff",
-            413: "Guest",
-            412: "Guests with Provisional Status (GPS)",
-            7472: "Leave of Absence (LOA)",
-            7385: "Resigned - Bad",
-            7384: "Resigned - Good",
-            7386: "Deceased",
-            None: "Active Member",
-        }
-    )
+    
+    membership_types = {
+        411: "Active Member",
+        6510: "Active Member - Emeritus",
+        6511: "Active Member - Out of Town",
+        6514: "Active Member - Senior",
+        7478: "Active Member - Staff",
+        413: "Guest",
+        412: "Guests with Provisional Status (GPS)",
+        7472: "Leave of Absence (LOA)",
+        7385: "Resigned - Bad",
+        7384: "Resigned - Good",
+        7386: "Deceased",
+        None: "Guest"
+    }
+    df["Plan__c"] = df["Plan__c"].map(membership_types)
+    
     df = df.fillna("")
     # df["Membership_Plan__c"] = "Active Member"
 
     df = df.map(convert)
+    logging.info("Final Member DataFrame")
+    # logging.info(df["Plan__c", "Member_ID__c","First"])
+    logging.info(df)
     upload_data_upsert(df, "HC_Member__c", changes, "Member_ID__c")
 
     # update_processed_flags(changes)
@@ -451,11 +465,16 @@ def process_and_save_orders(changes):
             MAX(CASE WHEN pm.meta_key = '_order_total' THEN pm.meta_value END) as order_total
         FROM 7903_posts p
         LEFT JOIN 7903_postmeta pm ON p.ID = pm.post_id
-        LEFT JOIN 7903_wc_customer_lookup c ON p.post_author = c.user_id
+        LEFT JOIN 7903_wc_customer_lookup c ON c.user_id = (
+            SELECT meta_value 
+            FROM 7903_postmeta 
+            WHERE post_id = p.ID 
+            AND meta_key = '_customer_user'
+        )
         WHERE p.ID IN ({', '.join(['%s'] * len(ids))})
         AND p.post_status IN ('wc-processing', 'wc-on-hold', 'wc-completed', 'wc-refunded', 'wc-cancelled')
         AND p.post_type = 'shop_order'
-        GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt
+        GROUP BY p.ID, p.post_author, p.post_date, p.post_status, p.post_excerpt, c.customer_id
     """
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -467,8 +486,8 @@ def process_and_save_orders(changes):
 
     df = pd.DataFrame(results)
     # Debug log
-    logging.info("DataFrame columns:")
-    logging.info(df.columns.tolist())
+    # logging.info("DataFrame columns:")
+    # logging.info(df.columns.tolist())
     df.rename(
         columns={
             "ID": "Order_Number__c",
@@ -493,9 +512,9 @@ def process_and_save_orders(changes):
         'wc-cancelled': 'Cancelled'
     }
     # Check if Order_Status__c exists before mapping
-    if 'Order_Status__c' not in df.columns:
-            logging.error(f"Order_Status__c column not found. Available columns: {df.columns.tolist()}")
-            return
+    # if 'Order_Status__c' not in df.columns:
+    #         logging.error(f"Order_Status__c column not found. Available columns: {df.columns.tolist()}")
+    #         return
             
     df['Order_Status__c'] = df['Order_Status__c'].map(WC_STATUS_MAPPING)
 
@@ -505,6 +524,8 @@ def process_and_save_orders(changes):
     # Format date as YYYY-MM-DD for Salesforce Date field
     df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')
     
+    df["Completed_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')    
+
     # Convert to numeric and format for Salesforce numeric(16,2)
     df["Order_Total_Value__c"] = (pd.to_numeric(df["Order_Total_Value__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
 
@@ -521,17 +542,11 @@ def process_and_save_order_items(changes):
     
     # Extract order IDs
     ids = [change["id"] for change in changes]
-    logging.info(f"Ids are {ids}")
     
-    # Query order items and related metadata
     query = f"""
         select oi.order_id, oi.order_item_id from 7903_woocommerce_order_items oi 
         where oi.order_item_type = 'line_item' and oi.order_item_id in ({', '.join(['%s'] * len(ids))})
     """
-    
-    # Debug log query
-    # logging.info(f"Executing query: {query}")
-    
     # Database connection
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -539,13 +554,11 @@ def process_and_save_order_items(changes):
     mycursor = mydb.cursor(dictionary=True)
     mycursor.execute(query,ids)
     results = mycursor.fetchall()
-    logging.info(f"Query results: {results}")
 
     # Convert to DataFrame
     df = pd.DataFrame(results)
     
     unique_ids = df['order_item_id'].unique().tolist()
-    logging.info(f"Unique order item IDs: {unique_ids}")
     
     modified_query = f"""
         select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
@@ -554,45 +567,35 @@ def process_and_save_order_items(changes):
     modified_query = mycursor.fetchall()
         
     modified_df = pd.DataFrame(modified_query)
-
-    logging.info(f"Modified DataFrame: {modified_df}")
     
     mydb.close()
 
     
     df ["Quantity"]=0
-    df ["Line Total"]=0
-    df ["Line Subtotal"]=0
-    df["Product Id"]=0
+    df ["line_total"]=0
+    df ["line_subtotal"]=0
+    df ["Product Id"]=0
     
-    for _ , row in modified_df.iterrows():
-        index= df[df["order_item_id"]== row["order_item_id"]].index[0]
-        logging.info(f"Index is {index}")
+    for _, row in modified_df.iterrows():
+        index = df[df["order_item_id"] == row["order_item_id"]].index[0]
         if row['meta_key'] == '_qty':
-            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_qty')].index
             df.at[index, 'Quantity'] = row['meta_value']
         elif row['meta_key'] == '_line_subtotal':
-            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_subtotal')].index
-            df.at[index, 'Line Subtotal'] = row['meta_value']
+            df.at[index, 'line_subtotal'] = row['meta_value']
         elif row['meta_key'] == '_line_total':
-            # index = df[(modified_df['order_item_id'] == row['order_item_id']) & (modified_df['meta_key']=='_line_total')].index
-            df.at[index, 'Line Total'] = row['meta_value']
+            df.at[index, 'line_total'] = row['meta_value']
         elif row['meta_key'] == '_product_id':
             df.at[index, 'Product Id'] = row['meta_value']
     
-    # df.drop(columns=['order_item_id'], inplace=True)
-    
-    df["Line Total"] = pd.to_numeric(df["Line Total"], errors='coerce').round(2).map('{:.2f}'.format)
-    df["Line Subtotal"] = pd.to_numeric(df["Line Subtotal"], errors='coerce').round(2).map('{:.2f}'.format)
-    
+        
     df.rename(
         columns={
             "order_id": "Parent_Order_Number__c",
             "order_item_id": "Order_Item_ID__c",
             "Quantity": "Item_Quantity__c",
-            "Line Subtotal": "Net_Revenue__c",
-            "Line Total": "Item_Cost__c",
-            "Product Id": "Original_Product_ID"
+            "Product Id": "Original_Product_ID__c",
+            "line_total": "Cost__c",
+            "line_subtotal": "Revenue__c"
         },
         inplace=True,
         errors="ignore"
@@ -619,7 +622,7 @@ def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
     ids = [change["id"] for change in changes]
-    query = f"""SELECT p.*, opl.max_price
+    query = f"""SELECT p.*, opl.max_price, opl.stock_quantity
             FROM 7903_posts AS p
             LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
             WHERE p.post_type IN ('product', 'product_variation')
@@ -667,12 +670,12 @@ def process_and_save_product(changes):
     day_of_week = mycursor.fetchall()
     
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (287,288,289);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (274,275,276);"
     )
     trimester = mycursor.fetchall()
     
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (291,292,293);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (278, 279, 280, 281, 282, 283, 284, 285);"
     )
     year = mycursor.fetchall()
     
@@ -697,9 +700,9 @@ def process_and_save_product(changes):
     tags_df = pd.DataFrame(tags)
 
     
-    logging.info(f"Processing {len(df)} records")
+    # logging.info(f"Processing {len(df)} records")
 
-    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type"]]
+    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type", "stock_quantity"]]
     df = df.map(convert)
     df.rename(
         columns={
@@ -709,6 +712,7 @@ def process_and_save_product(changes):
             "max_price": "Regular_Price__c",
             "post_parent":"Post_Parent__c",
             "post_type":"Product_Type__c",
+            "stock_quantity":"Available_Stock__c"
         },
         inplace=True,
         errors="ignore",
@@ -777,18 +781,23 @@ def process_and_save_product(changes):
             trimester.set_index("object_id")["cat"].to_dict()
         ).map(
             {
-                287: "Winter",
-                288: "Spring",
-                289: "Summer",
+                274: "Winter",
+                275: "Spring",
+                276: "Summer",
             }
         )
     df["Year__c"] = df["Product_Identifier__c"].map(
             year.set_index("object_id")["cat"].to_dict()
         ).map(
             {
-                291: "2023",
-                292: "2024",
-                293: "2025",
+                278: "2023",
+                279: "2024",
+                280: "2025",
+                281: "2026",
+                282: "2027",
+                283: "2028",
+                284: "2029",
+                285: "2030",
             }
         )
 
@@ -796,7 +805,7 @@ def process_and_save_product(changes):
     df = df.map(convert)
     
     logging.info("Final Product DataFrame")
-    logging.info(df[["Product_Identifier__c", "Name", "Post_Parent__c", "Id__c", "Product_Type__c", "Category__c", "Time__c", "Tags__c","Trimester__c","Year__c", "Day_of_Week__c"]].to_dict('records'))
+    logging.info(df)
     upload_data_upsert(df, "HC_Product__c",changes, "Product_Identifier__c")
     # print("Product uploaded",df)
     # update_processed_flags(changes)
@@ -821,8 +830,8 @@ def process_and_save_teachers(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
-    logging.info(f"Processing {len(df)} records")
-    logging.info(f"Available columns: {df.columns.tolist()}")
+    # logging.info(f"Processing {len(df)} records")
+    # logging.info(f"Available columns: {df.columns.tolist()}")
     
     df = df[["name","term_id"]]
     df.rename(columns={"name": "Name","term_id":"Id__c"}, inplace=True, errors="ignore")
@@ -830,8 +839,11 @@ def process_and_save_teachers(changes):
 
     df = df.fillna("")
     df = df.map(convert)
+    
+    logging.info("Final Teacher DataFrame")
+    logging.info(df)
 
-    upload_data(df, "HC_Teacher__c",changes, "Id__c")
+    upload_data_upsert(df, "HC_Teacher__c",changes, "Id__c")
 
     # update_processed_flags(changes)
 
@@ -873,7 +885,7 @@ if __name__ == "__main__":
             process_and_save_order_items(changes_data)
             pass
         if table == "7903_term_taxonomy":
-            # process_and_save_teachers(changes_data)
+            process_and_save_teachers(changes_data)
             pass
         if table == "7903_posts":
             process_and_save_product(changes_data)
