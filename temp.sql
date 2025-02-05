@@ -133,6 +133,35 @@ BEGIN
     );
 END
 
+BEGIN
+	IF (
+        OLD.first_name <> NEW.first_name OR
+        OLD.last_name <> NEW.last_name OR
+        OLD.email <> NEW.email OR
+        OLD.city <> NEW.city OR
+        OLD.customer_id <> NEW.customer_id OR
+        OLD.state <> NEW.state OR
+        OLD.postcode <> NEW.postcode
+    ) THEN
+        INSERT INTO trigger_table
+        (
+            id,
+            created_at,
+            operation,
+            table_name,
+            is_processed
+        )
+        VALUES
+        (
+            NEW.customer_id,        
+            NOW(),                  
+            'UPDATE',               
+            '7903_wc_customer_lookup',
+            0
+        );
+	END IF;  
+END
+
 -- setup trigegr table
 USE test_db;
 
