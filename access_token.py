@@ -32,11 +32,9 @@ def get_access_token():
         # Prepare request
         auth_url = f"{instance_url}/services/oauth2/token"
         payload = {
-            'grant_type': 'password',
+            'grant_type': 'client_credentials',
             'client_id': consumer_key,
             'client_secret': consumer_secret,
-            'username': username,
-            'password': password
         }
         
         headers = {

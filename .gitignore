@@ -1,4 +1,5 @@
 .env
+.env.staging
 script.log
 access_token.log
-./cron_status.log
+cron_status.log

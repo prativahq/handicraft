@@ -281,12 +281,13 @@ END
 USE test_db;
 
 CREATE TABLE `trigger_table` (
-    `id` INT(11) NOT NULL AUTO_INCREMENT,
+    `trigger_id` INT(11) NOT NULL AUTO_INCREMENT,
+    `id` INT(11) NOT NULL,
     `created_at` DATE NOT NULL,
     `operation` VARCHAR(100) NOT NULL,
     `table_name` VARCHAR(100) NOT NULL,
     `is_processed` TINYINT(1) NOT NULL DEFAULT 0,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`trigger_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

@@ -817,9 +817,10 @@ def process_and_save_teachers(changes):
     query = f"""
         SELECT t.term_id, t.name 
         FROM 7903_terms t
-        JOIN 7903_term_taxonomy tt ON t.term_id = tt.term_id
-        WHERE tt.parent = 248 
-        AND t.term_id IN ({', '.join(['%s'] * len(ids))})
+        JOIN 7903_term_taxonomy tt ON 
+            t.term_id = tt.term_id 
+            AND tt.parent = 248
+            AND t.term_id IN ({', '.join(['%s'] * len(ids))})
     """
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
