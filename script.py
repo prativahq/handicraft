@@ -43,7 +43,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 SALESFORCE_URI = os.getenv("SALESFORCE_URI")
 SALESFORCE_API_KEY = os.getenv("SALESFORCE_API_KEY")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+# SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")s
 SALESFORCE_URL = os.getenv("SALESFORCE_URL")
 
 states = {
@@ -94,6 +94,7 @@ states = {
 
 
 def send_email(content_data):
+    return
     try:
         email_list = os.getenv("EMAILS", "").split(",")
         to_emails = [To(email.strip()) for email in email_list]
