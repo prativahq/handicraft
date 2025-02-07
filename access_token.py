@@ -22,6 +22,7 @@ def get_access_token():
         username = os.getenv("SALESFORCE_USERNAME")
         password = os.getenv("PASSWORD")
         instance_url = os.getenv("INSTANCE_URL")
+        security_token = os.getenv("SECURITY_TOKEN")
         
         # logger.info("Retrieved credentials from environment", consumer_key, consumer_secret, username, password, instance_url)
 
@@ -32,9 +33,11 @@ def get_access_token():
         # Prepare request
         auth_url = f"{instance_url}/services/oauth2/token"
         payload = {
-            'grant_type': 'client_credentials',
+            'grant_type': 'password',
             'client_id': consumer_key,
             'client_secret': consumer_secret,
+            'username': username,
+            'password': password + security_token
         }
         
         headers = {

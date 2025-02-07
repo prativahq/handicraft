@@ -351,6 +351,24 @@ def fetch_changes(table_name):
         logging.info(f"Database error: {err}")
         return None
 
+def fetch_changes_distinct(table_name):
+    try:
+        mydb = mysql.connector.connect(
+            host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
+
+        query = f"SELECT trigger_id, id, MAX(created_at), operation, table_name, is_processed FROM trigger_table WHERE table_name = '{table_name}' AND is_processed = 0 GROUP BY id;"
+        mycursor.execute(query)
+        changes = mycursor.fetchall()
+        logging.info(f"Found {len(changes)} unprocessed changes")
+        mydb.close()  # Close the connection as soon as we're done
+
+        return changes
+    except mysql.connector.Error as err:
+        logging.info(f"Database error: {err}")
+        return None
+
 
 def convert(obj):
     if isinstance(obj, dict):
@@ -389,6 +407,8 @@ def process_and_save_members(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
+    if len(df) == 0:
+        return
     logging.info(f"Processing {len(df)} records")
     logging.info(df)
 
@@ -485,6 +505,8 @@ def process_and_save_orders(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
+    if len(df) == 0:
+        return
     # Debug log
     # logging.info("DataFrame columns:")
     # logging.info(df.columns.tolist())
@@ -670,12 +692,12 @@ def process_and_save_product(changes):
     day_of_week = mycursor.fetchall()
     
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (274,275,276);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (274,275,273);"
     )
     trimester = mycursor.fetchall()
     
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (278, 279, 280, 281, 282, 283, 284, 285);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (277, 278, 279, 280, 281, 282, 283, 284);"
     )
     year = mycursor.fetchall()
     
@@ -781,23 +803,23 @@ def process_and_save_product(changes):
             trimester.set_index("object_id")["cat"].to_dict()
         ).map(
             {
-                274: "Winter",
-                275: "Spring",
-                276: "Summer",
+                275: "Winter",
+                273: "Spring",
+                274: "Fall",
             }
         )
     df["Year__c"] = df["Product_Identifier__c"].map(
             year.set_index("object_id")["cat"].to_dict()
         ).map(
             {
-                278: "2023",
-                279: "2024",
-                280: "2025",
-                281: "2026",
-                282: "2027",
-                283: "2028",
-                284: "2029",
-                285: "2030",
+                277: "2023",
+                278: "2024",
+                279: "2025",
+                280: "2026",
+                281: "2027",
+                282: "2028",
+                283: "2029",
+                284: "2030",
             }
         )
 
@@ -831,6 +853,8 @@ def process_and_save_teachers(changes):
     mydb.close()  # Close the connection as soon as we're done
 
     df = pd.DataFrame(results)
+    if len(df) == 0:
+        return
     # logging.info(f"Processing {len(df)} records")
     # logging.info(f"Available columns: {df.columns.tolist()}")
     
@@ -867,10 +891,11 @@ def update_processed_flags(changes):
     except mysql.connector.Error as err:
         logging.info(f"Database error while updating processed flags: {err}")
 
-
 if __name__ == "__main__":
     for table in tables:
-        changes_data = fetch_changes(table)
+        changes_data = fetch_changes_distinct(table)
+        # print(json.dumps(changes_data, indent=4))
+        print(changes_data)
         if changes_data is None or len(changes_data) == 0:
             logging.info(f"No changes found for {table}")
             continue
@@ -878,15 +903,28 @@ if __name__ == "__main__":
         logging.info(f"Processing {table} with {len(changes_data)} changes")
         
         if table == "7903_wc_customer_lookup":
-            process_and_save_members(changes_data)
+            try:
+                process_and_save_members(changes_data)
+            except Exception as e:
+                print(e)
         if table == "7903_posts":
-            process_and_save_orders(changes_data)
-            pass
+            try:
+                process_and_save_orders(changes_data)
+            except Exception as e:
+                print(e)
         if table == "7903_woocommerce_order_items" or table == "7903_woocommerce_order_itemmeta":
-            process_and_save_order_items(changes_data)
-            pass
+            try:
+                process_and_save_order_items(changes_data)
+            except Exception as e:
+                print(e)
         if table == "7903_term_taxonomy":
-            process_and_save_teachers(changes_data)
-            pass
+            try:
+                print(changes_data)
+                process_and_save_teachers(changes_data)
+            except Exception as e:
+                print(e)
         if table == "7903_posts":
-            process_and_save_product(changes_data)
+            try:
+                process_and_save_product(changes_data)
+            except Exception as e:
+                print(e)
