@@ -47,6 +47,7 @@ SALESFORCE_API_KEY = os.getenv("SALESFORCE_API_KEY")
 SALESFORCE_URL = os.getenv("SALESFORCE_URL")
 
 states = {
+    "AK": "Alaska",
     "AL": "Alabama",
     "AZ": "Arizona",
     "CA": "California",
@@ -387,16 +388,25 @@ def process_and_save_members(changes):
         return
     ids = [change["id"] for change in changes]
     query = f"""
-        SELECT 
+        SELECT
             wcl.*,
             um.meta_value as phone,
-            p.post_parent as membership_plan
+            p.post_parent as membership_plan,
+            (CASE
+             	WHEN um_billing_addr.meta_value IS NOT NULL OR LENGTH(um_billing_addr.meta_value) <> 0 THEN um_billing_addr.meta_value
+            	WHEN um_shipping_addr.meta_value IS NOT NULL OR LENGTH(um_shipping_addr.meta_value) <> 0 THEN um_shipping_addr.meta_value
+             	ELSE NULL
+            END) as address
         FROM 
-            7903_wc_customer_lookup wcl
+            `7903_wc_customer_lookup` wcl
         LEFT JOIN 
-            7903_usermeta um ON wcl.user_id = um.user_id AND um.meta_key = 'billing_phone'
+            `7903_usermeta` um ON wcl.user_id = um.user_id AND um.meta_key = 'billing_phone'
+        LEFT JOIN
+        	`7903_usermeta` um_shipping_addr ON wcl.user_id = um_shipping_addr.user_id AND um_shipping_addr.meta_key = 'shipping_address_1'
+        LEFT JOIN
+        	`7903_usermeta` um_billing_addr ON wcl.user_id = um_billing_addr.user_id AND um_billing_addr.meta_key = 'billing_address_1'
         LEFT JOIN 
-            7903_posts p ON wcl.user_id = p.post_author
+            `7903_posts` p ON wcl.user_id = p.post_author and p.post_status = 'wcm-active'
         WHERE 
             wcl.customer_id IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
@@ -424,6 +434,7 @@ def process_and_save_members(changes):
             "state",
             "postcode",
             "membership_plan",
+            "address",
         ]
     ]
     df.rename(
@@ -437,6 +448,7 @@ def process_and_save_members(changes):
             "state": "State__c",
             "postcode": "Zipcode__c",
             "membership_plan": "Plan__c",
+            "address": "Street__c"
         },
         inplace=True,
         errors="ignore",
