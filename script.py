@@ -639,6 +639,7 @@ def process_and_save_order_items(changes):
     # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
     df["Ken_s_Field__c"] = False
+    df["Item_Cost__c"] = df["Cost__c"]
     
     # Fill and convert
     df = df.fillna("")
