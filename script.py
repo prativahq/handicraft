@@ -281,8 +281,8 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str, chunk_size=
 
         if res.status_code != 200:
             logging.info(f"Chunk upload failed: {res.text}")
-            continue
-
+            return
+        
         res = res.json()
         logging.info(res["id"])
 
