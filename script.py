@@ -596,7 +596,7 @@ def process_and_save_order_items(changes):
     unique_ids = df['order_item_id'].unique().tolist()
     
     modified_query = f"""
-        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
+        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id', '_variation_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
     """
     mycursor.execute(modified_query, unique_ids)
     modified_query = mycursor.fetchall()
@@ -610,6 +610,7 @@ def process_and_save_order_items(changes):
     df ["line_total"]=0
     df ["line_subtotal"]=0
     df ["Product Id"]=0
+    df ["Variation Id"]=0
     
     for _, row in modified_df.iterrows():
         index = df[df["order_item_id"] == row["order_item_id"]].index[0]
@@ -621,8 +622,15 @@ def process_and_save_order_items(changes):
             df.at[index, 'line_total'] = row['meta_value']
         elif row['meta_key'] == '_product_id':
             df.at[index, 'Product Id'] = row['meta_value']
-    
-        
+        elif row['meta_key'] == '_variation_id':
+            df.at[index, 'Variation Id'] = row['meta_value']
+    # print(df)
+    for index, row in df.iterrows():
+        if row['Variation Id'] != "0":
+            df.at[index, 'Product Id'] = row['Variation Id']
+    # print(df)
+    df.drop(columns=['Variation Id'], inplace=True)
+
     df.rename(
         columns={
             "order_id": "Parent_Order_Number__c",
