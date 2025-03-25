@@ -240,6 +240,19 @@ def upload_data(df, table, changes):
         send_email(result)
         return result
 
+def get_order_item_record_from_salesforce(order_item_id):
+    headers = {
+        "Authorization": f"Bearer {SALESFORCE_API_KEY}",
+        "Accept": "application/json",
+    }
+    response = requests.get(f"{SALESFORCE_URL}/sobjects/HC_Order_Item__c/Order_Item_ID__c/{order_item_id}", headers=headers).json()
+    if type(response) == list:
+        return None
+    return {
+        "quantity": response["Item_Quantity__c"],
+        "refund_amount": response["Refund_Amount__c"]
+    }
+
 def upload_data_upsert(df, table, changes, externalIdFieldName: str, chunk_size=500):
     final_result = {
         "from_db": [],
@@ -330,8 +343,9 @@ def upload_data_upsert(df, table, changes, externalIdFieldName: str, chunk_size=
             final_result["from_db"].extend(result["from_db"])
             logging.info(result)
             break
-
-    update_processed_flags(changes)
+    
+    if changes != None:
+        update_processed_flags(changes)
     send_email(final_result)
     return final_result
 
@@ -575,13 +589,36 @@ def process_and_save_order_items(changes):
     if not changes:
         return
     
+    WC_STATUS_MAPPING = {
+        'wc-processing': 'Processing',
+        'wc-on-hold': 'On Hold', 
+        'wc-completed': 'Completed',
+        'wc-refunded': 'Refunded',
+        'wc-cancelled': 'Cancelled'
+    }
+
     # Extract order IDs
     ids = [change["id"] for change in changes]
+    print("Processing order items ---------------------------------------------------------------")
+    print(ids)
     
+    # query = f"""
+    #     select oi.order_id, oi.order_item_id from 7903_woocommerce_order_items oi 
+    #     where oi.order_item_type = 'line_item' and oi.order_item_id in ({', '.join(['%s'] * len(ids))})
+    #     left join 7903_posts 
+    # """
     query = f"""
-        select oi.order_id, oi.order_item_id from 7903_woocommerce_order_items oi 
-        where oi.order_item_type = 'line_item' and oi.order_item_id in ({', '.join(['%s'] * len(ids))})
-    """
+SELECT
+    oi.order_id,
+    oi.order_item_id,
+    p.post_status as order_item_status
+FROM
+    `7903_woocommerce_order_items` oi
+JOIN `7903_posts` p ON
+    p.ID = oi.order_id
+WHERE
+    oi.order_item_type = 'line_item' AND oi.order_item_id IN ({', '.join(['%s'] * len(ids))});
+"""
     # Database connection
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
@@ -596,7 +633,7 @@ def process_and_save_order_items(changes):
     unique_ids = df['order_item_id'].unique().tolist()
     
     modified_query = f"""
-        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id', '_variation_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
+        select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id', '_variation_id', '_refunded_item_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
     """
     mycursor.execute(modified_query, unique_ids)
     modified_query = mycursor.fetchall()
@@ -611,6 +648,7 @@ def process_and_save_order_items(changes):
     df ["line_subtotal"]=0
     df ["Product Id"]=0
     df ["Variation Id"]=0
+    df ["Refunded Item Id"]=None
     
     for _, row in modified_df.iterrows():
         index = df[df["order_item_id"] == row["order_item_id"]].index[0]
@@ -624,12 +662,71 @@ def process_and_save_order_items(changes):
             df.at[index, 'Product Id'] = row['meta_value']
         elif row['meta_key'] == '_variation_id':
             df.at[index, 'Variation Id'] = row['meta_value']
+        elif row['meta_key'] == '_refunded_item_id':
+            df.at[index, 'Refunded Item Id'] = row['meta_value']
     # print(df)
     for index, row in df.iterrows():
         if row['Variation Id'] != "0":
             df.at[index, 'Product Id'] = row['Variation Id']
+    
+    logging.info("<<<<< Initial DF >>>>>")
+    logging.info(df)
+    
+
+    refunded_df = pd.DataFrame()
+    refunded_df['order_item_status'] = 0
+    refunded_df['order_item_id'] = 0
+    refunded_df['quantity'] = 0
+    refunded_df['refund_amount'] = 0
+
+    # curl https://handicraftclub.my.salesforce.com/services/data/v63.0/sobjects/HC_OrderItem__c/Order_Item_ID__c/2727 -H "Authorization: Bearer 00DDp0000018bT8!AQEAQA5g1x533Bs0AZa7oXg1o4evQQNUzl8rfFtODrFnFnsaWCAHcoa1MByeGAYX13Z_6jn0_E4jn93ZO.I9_XJsjFCOs6nE"
+
+    # Create a df containing order items that were refunded
+    for index, row in df.iterrows():
+        oid = row["Refunded Item Id"]
+        print(type(oid))
+        if oid is not None:
+            info = get_order_item_record_from_salesforce(oid)
+            print(row['Quantity'], type(row['Quantity']), info['quantity'], type(info['quantity']))
+            print(f"Info for oid = {oid} ", info)
+            if info is None:
+                record = {
+                    "order_item_status": WC_STATUS_MAPPING['wc-refunded'],
+                    'order_item_id': oid,
+                    'quantity': float(row['Quantity']),
+                    'refund_amount': float(row['line_total'])
+                }
+            else:
+                record = {
+                    "order_item_status": WC_STATUS_MAPPING['wc-refunded'],
+                    'order_item_id': oid,
+                    'quantity': float(row['Quantity']) + info['quantity'],
+                    'refund_amount': float(row['line_total']) + info ['refund_amount'] if info["refund_amount"] is not None else abs(float(row['line_total']))
+                }
+            refunded_df.loc[len(refunded_df)] = record
+            # Get original order item
+            pass
+    refunded_df.rename(columns = {
+        "order_item_id": "Order_Item_ID__c",
+        "quantity": "Item_Quantity__c",
+        "order_item_status": "Order_Item_Status__c",
+        "refund_amount": "Refund_Amount__c"
+    }, inplace=True, errors="ignore")
+    logging.info("<<<<< Final Refunded Order Item DataFrame >>>>")
+    logging.info(refunded_df)
+
+    # for idx, r in df.iterrows():
+    #     print(type(r['Refunded Item Id']), r['Refunded Item Id'] == None)
+    # Remove refunded order items from the main df
+    df = df[df['Refunded Item Id'].isnull()]
+
     # print(df)
-    df.drop(columns=['Variation Id'], inplace=True)
+    df.drop(columns=['Variation Id', 'Refunded Item Id'], inplace=True)
+    logging.info(df)
+
+    # Map the order item statuses    
+    df['order_item_status'] = df['order_item_status'].map(WC_STATUS_MAPPING)
+    logging.info(df)
 
     df.rename(
         columns={
@@ -638,11 +735,13 @@ def process_and_save_order_items(changes):
             "Quantity": "Item_Quantity__c",
             "Product Id": "Original_Product_ID__c",
             "line_total": "Cost__c",
-            "line_subtotal": "Revenue__c"
+            "line_subtotal": "Revenue__c",
+            "order_item_status": "Order_Item_Status__c"
         },
         inplace=True,
         errors="ignore"
     )
+    logging.info(df)
     
     # Additional transformations
     df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
@@ -653,12 +752,15 @@ def process_and_save_order_items(changes):
     df = df.fillna("")
     df = df.map(convert)
     
-    logging.info("Final Order Item DataFrame")
+    logging.info("<<<<<<<< Final Order Item DataFrame >>>>>>")
     logging.info(df)
     
     # Upload to Salesforce
     # upload_data(df, "HC_Order_Item__c", changes)
     upload_data_upsert(df, "HC_Order_Item__c", changes, "Order_Item_ID__c")
+    if len(refunded_df) > 0:
+        upload_data_upsert(refunded_df, "HC_Order_Item__c", None, "Order_Item_ID__c")
+
 
 
 
@@ -934,7 +1036,10 @@ if __name__ == "__main__":
                 process_and_save_orders(changes_data)
             except Exception as e:
                 print(e)
-        if table == "7903_woocommerce_order_items" or table == "7903_woocommerce_order_itemmeta":
+        # The check for changes in 7903_woocommerce_oder_itemmeta is disabled because it was placed there to solve an issue in
+        # the staging site, which is not present in the production site. The issue was that certain changes in items in woocommerce
+        # caused certain changes in the itemmeta table. To catch those this was placed here.
+        if table == "7903_woocommerce_order_items": # or table == "7903_woocommerce_order_itemmeta":
             try:
                 process_and_save_order_items(changes_data)
             except Exception as e:
