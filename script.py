@@ -410,7 +410,9 @@ def process_and_save_members(changes):
              	WHEN um_billing_addr.meta_value IS NOT NULL OR LENGTH(um_billing_addr.meta_value) <> 0 THEN um_billing_addr.meta_value
             	WHEN um_shipping_addr.meta_value IS NOT NULL OR LENGTH(um_shipping_addr.meta_value) <> 0 THEN um_shipping_addr.meta_value
              	ELSE NULL
-            END) as address
+            END) as address,
+            pm1.meta_value as membership_start,
+            pm.meta_value as membership_expiration
         FROM 
             `7903_wc_customer_lookup` wcl
         LEFT JOIN 
@@ -421,6 +423,10 @@ def process_and_save_members(changes):
         	`7903_usermeta` um_billing_addr ON wcl.user_id = um_billing_addr.user_id AND um_billing_addr.meta_key = 'billing_address_1'
         LEFT JOIN 
             `7903_posts` p ON wcl.user_id = p.post_author and p.post_status = 'wcm-active'
+        LEFT JOIN 
+        	`7903_postmeta` pm ON pm.post_id = p.ID and pm.meta_key = '_end_date'
+        LEFT JOIN 
+        	`7903_postmeta` pm1 ON pm1.post_id = p.ID and pm1.meta_key = '_start_date'
         WHERE 
             wcl.customer_id IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
@@ -449,6 +455,8 @@ def process_and_save_members(changes):
             "postcode",
             "membership_plan",
             "address",
+            "membership_start",
+            "membership_expiration"
         ]
     ]
     df.rename(
@@ -462,7 +470,9 @@ def process_and_save_members(changes):
             "state": "State__c",
             "postcode": "Zipcode__c",
             "membership_plan": "Plan__c",
-            "address": "Street__c"
+            "address": "Street__c",
+            "membership_start": "Member_Since__c",
+            "membership_expiration": "Membership_Expiration__c",
         },
         inplace=True,
         errors="ignore",
