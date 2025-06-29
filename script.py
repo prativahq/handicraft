@@ -574,6 +574,9 @@ def process_and_save_orders(changes):
     # if 'Order_Status__c' not in df.columns:
     #         logging.error(f"Order_Status__c column not found. Available columns: {df.columns.tolist()}")
     #         return
+
+    logging.info("DF before processing")
+    logging.info(df)
             
     df['Order_Status__c'] = df['Order_Status__c'].map(WC_STATUS_MAPPING)
 
@@ -931,6 +934,7 @@ def process_and_save_product(changes):
                 34: "Thursday",
                 40: "Friday",
                 48: "Saturday",
+                309: "Sunday",
             }
         )
     df["Trimester__c"] = df["Product_Identifier__c"].map(
