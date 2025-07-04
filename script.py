@@ -824,7 +824,7 @@ def process_and_save_product(changes):
     categories = mycursor.fetchall()
 
     mycursor.execute(
-        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (31, 32, 37, 34, 40, 48);"
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (31, 32, 37, 34, 40, 48, 309);"
     )
     day_of_week = mycursor.fetchall()
     
