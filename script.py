@@ -584,15 +584,15 @@ def process_and_save_orders(changes):
     df = df[df['Order_Status__c'].notna()]
 
     # Format date as YYYY-MM-DD for Salesforce Date field
-    df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')
-    
     df["Completed_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%d')    
+    df["Order_Date__c"] = pd.to_datetime(df["Order_Date__c"]).dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    
 
     # Convert to numeric and format for Salesforce numeric(16,2)
     df["Order_Total_Value__c"] = (pd.to_numeric(df["Order_Total_Value__c"], errors='coerce').round(2).clip(-99999999999999.99, 99999999999999.99))
 
     df = df.fillna("")
-    df = df.map(convert)
+    # df = df.map(convert)
     logging.info("Final Order DataFrame")
     logging.info(df)
     #upload_data(df, "HC_Order__c",changes)
@@ -775,12 +775,208 @@ WHERE
         upload_data_upsert(refunded_df, "HC_Order_Item__c", None, "Order_Item_ID__c")
 
 
+def process_and_save_updated_product(changes):
+    if changes is None or len(changes) == 0:
+        return
+    ids = [change["id"] for change in list(filter(lambda c: c["operation"] == "UPDATE", changes))]
+    if len(ids) == 0:
+        return
+    query = f"""SELECT p.*, opl.max_price
+            FROM 7903_posts AS p
+            LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
+            WHERE p.post_type IN ('product', 'product_variation')
+            AND p.ID IN ({', '.join(['%s'] * len(ids))})"""
+            
+    # Teacher mapping query with IDs
+    # GROUP_CONCAT(t.name) as teacher,
+    # GROUP_CONCAT(t.term_id) as teacher_ids
+    teacher_query = """
+            SELECT tr.object_id as products, 
+            t.term_id as teacher_id
+            FROM 7903_term_relationships tr 
+            JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+            JOIN 7903_terms t ON tt.term_id = t.term_id
+            WHERE tr.object_id IN ({})
+            AND tt.parent = 248 GROUP BY tr.object_id
+    """.format(', '.join(['%s'] * len(ids)))
+    
+    # Add tag query
+    tag_query = """
+        SELECT tr.object_id as product_id, GROUP_CONCAT(t.name SEPARATOR ';') as tags
+        FROM 7903_term_relationships tr
+        JOIN 7903_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+        JOIN 7903_terms t ON tt.term_id = t.term_id
+        WHERE tr.object_id IN ({})
+        AND tt.taxonomy = 'product_tag'
+        GROUP BY tr.object_id
+    """.format(', '.join(['%s'] * len(ids)))
+    
+    mydb = mysql.connector.connect(
+        host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+    )
+    mycursor = mydb.cursor(dictionary=True)  # Fetch results as dictionaries
+    mycursor.execute(query, ids)
+    results = mycursor.fetchall()
+
+    mycursor.execute(
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (23, 192, 256, 27, 111, 42, 64);"
+    )
+    categories = mycursor.fetchall()
+
+    mycursor.execute(
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (31, 32, 37, 34, 40, 48, 309);"
+    )
+    day_of_week = mycursor.fetchall()
+    
+    mycursor.execute(
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (274,275,273);"
+    )
+    trimester = mycursor.fetchall()
+    
+    mycursor.execute(
+        "SELECT DISTINCT(object_id), term_taxonomy_id as cat FROM `7903_term_relationships` WHERE term_taxonomy_id IN (277, 278, 279, 280, 281, 282, 283, 284);"
+    )
+    year = mycursor.fetchall()
+    
+    # Execute teacher query
+    mycursor.execute(teacher_query, ids)
+    teachers = mycursor.fetchall()
+    
+    # Execute tag query
+    mycursor.execute(tag_query, ids)
+    tags = mycursor.fetchall()
+    mydb.close()  # Close the connection as soon as we're done
+
+    if results is None or len(results) == 0:
+        return
+
+    df = pd.DataFrame(results)
+    categories = pd.DataFrame(categories)
+    day_of_week = pd.DataFrame(day_of_week)
+    trimester = pd.DataFrame(trimester)
+    year = pd.DataFrame(year)
+    teacher_df = pd.DataFrame(teachers)
+    tags_df = pd.DataFrame(tags)
+
+    
+    # logging.info(f"Processing {len(df)} records")
+
+    df = df[["ID", "post_title", "post_date", "guid", "max_price","post_parent", "post_type"]]
+    df = df.map(convert)
+    df.rename(
+        columns={
+            "ID": "Product_Identifier__c",
+            "post_title": "Name",
+            "guid": "Product_Page_URL__c",
+            "max_price": "Regular_Price__c",
+            "post_parent":"Post_Parent__c",
+            "post_type":"Product_Type__c",
+            # "stock_quantity":"Available_Stock__c"
+        },
+        inplace=True,
+        errors="ignore",
+    )
+    
+    # Create mapping of product ID to teacher term_id
+    if not teacher_df.empty:
+        teacher_mapping = dict(zip(teacher_df['products'], teacher_df['teacher_id']))
+        
+        # For each product, get teacher ID either directly or from parent
+        def get_teacher_id(row):
+            if row['Post_Parent__c'] != 0:  # If it's a variation
+                return teacher_mapping.get(row['Post_Parent__c'])  # Get parent's teacher ID
+            return teacher_mapping.get(row['Product_Identifier__c'])  # Get own teacher ID
+        
+        df['Id__c'] = df.apply(get_teacher_id, axis=1)
+    
+    # Map tags to products
+    if not tags_df.empty:
+        tag_mapping = dict(zip(tags_df['product_id'], tags_df['tags']))
+        
+        def get_tags(row):
+            if row['Post_Parent__c'] != 0:  # If child product
+                return tag_mapping.get(row['Post_Parent__c'], '')
+            return tag_mapping.get(row['Product_Identifier__c'], '')
+            
+        df['Tags__c'] = df.apply(get_tags, axis=1)
+    else:
+        df['Tags__c'] = ''
+        
+    df["Did_Not_Run__c"] = False
+    post_date = pd.to_datetime(df["post_date"])
+    df["Post_Date__c"] = post_date.dt.strftime("%Y-%m-%d")
+    df.drop(columns=["post_date"], inplace=True)
+    df["Time__c"] = post_date.dt.strftime("%H:%M:%S")
+    df["Source__c"] = f"wpdatabridge - {datetime.now().strftime(r'%Y-%m-%d')}"
+    df["Category__c"] = (
+        df["Product_Identifier__c"].map(
+            categories.set_index("object_id")["cat"].to_dict()
+        )
+        .map(
+            {
+                23: "Classes",
+                192: "Clubhouse Only",
+                256: "Event",
+                27: "Membership",
+                111: "Open Studios",
+                42: "Transportation",
+                64: "Workshops",
+            }
+        )
+    )
+    df["Day_of_Week__c"] = df["Product_Identifier__c"].map(
+            day_of_week.set_index("object_id")["cat"].to_dict()
+        ).map(
+            {
+                31: "Monday",
+                32: "Tuesday",
+                37: "Wednesday",
+                34: "Thursday",
+                40: "Friday",
+                48: "Saturday",
+                309: "Sunday",
+            }
+        )
+    df["Trimester__c"] = df["Product_Identifier__c"].map(
+            trimester.set_index("object_id")["cat"].to_dict()
+        ).map(
+            {
+                275: "Winter",
+                273: "Spring",
+                274: "Fall",
+            }
+        )
+    df["Year__c"] = df["Product_Identifier__c"].map(
+            year.set_index("object_id")["cat"].to_dict()
+        ).map(
+            {
+                277: "2023",
+                278: "2024",
+                279: "2025",
+                280: "2026",
+                281: "2027",
+                282: "2028",
+                283: "2029",
+                284: "2030",
+            }
+        )
+
+    df = df.fillna("")
+    df = df.map(convert)
+    
+    logging.info("Final Product DataFrame")
+    logging.info(df)
+    upload_data_upsert(df, "HC_Product__c",changes, "Product_Identifier__c")
+    # print("Product uploaded",df)
+    # update_processed_flags(changes)
 
 
 def process_and_save_product(changes):
     if changes is None or len(changes) == 0:
         return
-    ids = [change["id"] for change in changes]
+    ids = [change["id"] for change in list(filter(lambda c: c["operation"] == "INSERT", changes))]
+    if len(ids) == 0:
+        return
     query = f"""SELECT p.*, opl.max_price, opl.stock_quantity
             FROM 7903_posts AS p
             LEFT JOIN 7903_wc_product_meta_lookup AS opl ON p.ID = opl.product_id
@@ -1044,7 +1240,7 @@ if __name__ == "__main__":
             try:
                 process_and_save_members(changes_data)
             except Exception as e:
-                print(e)
+                print("Error save_members", e)
         if table == "7903_posts":
             try:
                 process_and_save_orders(changes_data)
@@ -1057,15 +1253,19 @@ if __name__ == "__main__":
             try:
                 process_and_save_order_items(changes_data)
             except Exception as e:
-                print(e)
+                print("Error save_order_items", e)
         if table == "7903_term_taxonomy":
             try:
                 print(changes_data)
                 process_and_save_teachers(changes_data)
             except Exception as e:
-                print(e)
+                print("Error save_teachers", e)
         if table == "7903_posts":
             try:
                 process_and_save_product(changes_data)
             except Exception as e:
-                print(e)
+                print("Error save_product", e)
+            try:
+                process_and_save_updated_product(changes_data)
+            except Exception as e:
+                print("Error save_updated_product", e)
