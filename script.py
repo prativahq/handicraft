@@ -253,6 +253,13 @@ def get_order_item_record_from_salesforce(order_item_id):
         "refund_amount": response["Refund_Amount__c"]
     }
 
+def get_order_item_record_from_df(df, oid, roid):
+    for index, row in df.iterrows():
+        # print(row["order_item_id"], roid, type(row["order_item_id"]), type(roid))
+        if int(row["order_item_id"]) == int(roid):
+            return dict(row)
+    pass
+
 def upload_data_upsert(df, table, changes, externalIdFieldName: str, chunk_size=500):
     final_result = {
         "from_db": [],
@@ -644,6 +651,8 @@ WHERE
     df = pd.DataFrame(results)
     
     unique_ids = df['order_item_id'].unique().tolist()
+
+    print("Breakpoint 1")
     
     modified_query = f"""
         select * from 7903_woocommerce_order_itemmeta where meta_key in ('_qty', '_line_subtotal', '_line_total', '_product_id', '_variation_id', '_refunded_item_id') and order_item_id in ({', '.join(['%s'] * len(unique_ids))})
@@ -654,6 +663,8 @@ WHERE
     modified_df = pd.DataFrame(modified_query)
     
     mydb.close()
+
+    print("Breakpoint 2")
 
     
     df ["Quantity"]=0
@@ -677,7 +688,7 @@ WHERE
             df.at[index, 'Variation Id'] = row['meta_value']
         elif row['meta_key'] == '_refunded_item_id':
             df.at[index, 'Refunded Item Id'] = row['meta_value']
-    # print(df)
+    print("Breakpoint 3")
     for index, row in df.iterrows():
         if row['Variation Id'] != "0":
             df.at[index, 'Product Id'] = row['Variation Id']
@@ -700,6 +711,12 @@ WHERE
         print(type(oid))
         if oid is not None:
             info = get_order_item_record_from_salesforce(oid)
+            if info is None:
+                t = get_order_item_record_from_df(df, row["order_item_id"], oid)
+                print("Previous Order >>>", t)
+                info = { "order_item_id": oid, "quantity": int(t["Quantity"]), "refund_amount": None }
+                pass
+            print(row["order_id"], row["order_item_id"], oid, info)
             print(row['Quantity'], type(row['Quantity']), info['quantity'], type(info['quantity']))
             print(f"Info for oid = {oid} ", info)
             if info is None:
