@@ -418,6 +418,7 @@ def process_and_save_members(changes):
             	WHEN um_shipping_addr.meta_value IS NOT NULL OR LENGTH(um_shipping_addr.meta_value) <> 0 THEN um_shipping_addr.meta_value
              	ELSE NULL
             END) as address,
+            um_billing_addr_2.meta_value as landmark,
             pm1.meta_value as membership_start,
             pm.meta_value as membership_expiration
         FROM 
@@ -428,6 +429,8 @@ def process_and_save_members(changes):
         	`7903_usermeta` um_shipping_addr ON wcl.user_id = um_shipping_addr.user_id AND um_shipping_addr.meta_key = 'shipping_address_1'
         LEFT JOIN
         	`7903_usermeta` um_billing_addr ON wcl.user_id = um_billing_addr.user_id AND um_billing_addr.meta_key = 'billing_address_1'
+        LEFT JOIN
+        	`7903_usermeta` um_billing_addr_2 ON wcl.user_id = um_billing_addr_2.user_id AND um_billing_addr_2.meta_key = 'billing_address_2'
         LEFT JOIN 
             `7903_posts` p ON wcl.user_id = p.post_author and p.post_status = 'wcm-active'
         LEFT JOIN 
@@ -462,6 +465,7 @@ def process_and_save_members(changes):
             "postcode",
             "membership_plan",
             "address",
+            "landmark",
             "membership_start",
             "membership_expiration"
         ]
@@ -478,6 +482,7 @@ def process_and_save_members(changes):
             "postcode": "Zipcode__c",
             "membership_plan": "Plan__c",
             "address": "Street__c",
+            "landmark": "Landmark__c",
             "membership_start": "Member_Since__c",
             "membership_expiration": "Membership_Expiration__c",
         },
