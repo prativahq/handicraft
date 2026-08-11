@@ -1,4 +1,5 @@
 import mysql.connector
+import traceback
 import json
 from decimal import Decimal
 import time
@@ -714,7 +715,6 @@ WHERE
     refunded_df['quantity'] = 0
     refunded_df['refund_amount'] = 0
 
-    # curl https://handicraftclub.my.salesforce.com/services/data/v63.0/sobjects/HC_OrderItem__c/Order_Item_ID__c/2727 -H "Authorization: Bearer 00DDp0000018bT8!AQEAQA5g1x533Bs0AZa7oXg1o4evQQNUzl8rfFtODrFnFnsaWCAHcoa1MByeGAYX13Z_6jn0_E4jn93ZO.I9_XJsjFCOs6nE"
 
     # Create a df containing order items that were refunded
     for index, row in df.iterrows():
@@ -724,12 +724,14 @@ WHERE
             info = get_order_item_record_from_salesforce(oid)
             if info is None:
                 t = get_order_item_record_from_df(df, row["order_item_id"], oid)
-                print("Previous Order >>>", t)
-                info = { "order_item_id": oid, "quantity": int(t["Quantity"]), "refund_amount": None }
+                if t is not None:
+                    print("Previous Order >>>", t)
+                    info = { "order_item_id": oid, "quantity": int(t["Quantity"]), "refund_amount": None }
                 pass
-            print(row["order_id"], row["order_item_id"], oid, info)
-            print(row['Quantity'], type(row['Quantity']), info['quantity'], type(info['quantity']))
-            print(f"Info for oid = {oid} ", info)
+                if info is not None:
+                    print(row["order_id"], row["order_item_id"], oid, info)
+                    print(row['Quantity'], type(row['Quantity']), info['quantity'], type(info['quantity']))
+                    print(f"Info for oid = {oid} ", info)
             if info is None:
                 record = {
                     "order_item_status": WC_STATUS_MAPPING['wc-refunded'],
@@ -1282,6 +1284,8 @@ if __name__ == "__main__":
                 process_and_save_order_items(changes_data)
             except Exception as e:
                 print("Error save_order_items", e)
+                print("Error occurred:")
+                traceback.print_exc()
         if table == "7903_term_taxonomy":
             try:
                 print(changes_data)
