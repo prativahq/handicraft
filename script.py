@@ -431,11 +431,11 @@ def sync_members_to_salesforce(ids, changes):
             	WHEN um_shipping_addr_2.meta_value IS NOT NULL OR LENGTH(um_shipping_addr_2.meta_value) <> 0 THEN um_shipping_addr_2.meta_value
              	ELSE NULL
             END) as landmark,
-            pm1.meta_value as membership_start,
+            first_membership.first_start_date as membership_start,
             pm.meta_value as membership_expiration
-        FROM 
+        FROM
             `7903_wc_customer_lookup` wcl
-        LEFT JOIN 
+        LEFT JOIN
             `7903_usermeta` um ON wcl.user_id = um.user_id AND um.meta_key = 'billing_phone'
         LEFT JOIN
         	`7903_usermeta` um_shipping_addr ON wcl.user_id = um_shipping_addr.user_id AND um_shipping_addr.meta_key = 'shipping_address_1'
@@ -445,13 +445,21 @@ def sync_members_to_salesforce(ids, changes):
         	`7903_usermeta` um_billing_addr_2 ON wcl.user_id = um_billing_addr_2.user_id AND um_billing_addr_2.meta_key = 'billing_address_2'
         LEFT JOIN
         	`7903_usermeta` um_shipping_addr_2 ON wcl.user_id = um_shipping_addr_2.user_id AND um_shipping_addr_2.meta_key = 'shipping_address_2'
-        LEFT JOIN 
+        LEFT JOIN
             `7903_posts` p ON wcl.user_id = p.post_author and p.post_status = 'wcm-active'
-        LEFT JOIN 
+        LEFT JOIN
         	`7903_postmeta` pm ON pm.post_id = p.ID and pm.meta_key = '_end_date'
-        LEFT JOIN 
-        	`7903_postmeta` pm1 ON pm1.post_id = p.ID and pm1.meta_key = '_start_date'
-        WHERE 
+        LEFT JOIN (
+            -- Member_Since__c should reflect the FIRST membership a member
+            -- ever had, not their current/latest one - a plan change (e.g.
+            -- resignation, renewal, upgrade) must never move this date.
+            SELECT p2.post_author, MIN(pm2.meta_value) as first_start_date
+            FROM `7903_posts` p2
+            JOIN `7903_postmeta` pm2 ON pm2.post_id = p2.ID AND pm2.meta_key = '_start_date'
+            WHERE p2.post_type = 'wc_user_membership'
+            GROUP BY p2.post_author
+        ) first_membership ON first_membership.post_author = wcl.user_id
+        WHERE
             wcl.customer_id IN ({', '.join(['%s'] * len(ids))})"""
     mydb = mysql.connector.connect(
         host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
