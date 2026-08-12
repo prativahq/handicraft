@@ -405,10 +405,17 @@ def convert(obj):
         return obj
 
 
-def process_and_save_members(changes):
-    if changes is None or len(changes) == 0:
+def sync_members_to_salesforce(ids, changes):
+    """Query members by customer_id and upsert them to Salesforce.
+
+    `ids` are `7903_wc_customer_lookup.customer_id` values to (re)sync.
+    `changes` are the original trigger_table rows being fulfilled by this
+    sync — they get marked is_processed=1 on a successful upload, so callers
+    can pass through changes from a different table (e.g. 7903_posts) as
+    long as `ids` has already been translated to customer_ids.
+    """
+    if not ids:
         return
-    ids = [change["id"] for change in changes]
     query = f"""
         SELECT
             wcl.*,
@@ -526,6 +533,52 @@ def process_and_save_members(changes):
     upload_data_upsert(df, "HC_Member__c", changes, "Member_ID__c")
 
     # update_processed_flags(changes)
+
+
+def process_and_save_members(changes):
+    if changes is None or len(changes) == 0:
+        return
+    ids = [change["id"] for change in changes]
+    sync_members_to_salesforce(ids, changes)
+
+
+def process_and_save_members_from_posts(changes):
+    """Handle 7903_posts changes that are membership plan changes.
+
+    A member's Plan__c (e.g. "Resigned - Good"/"Resigned - Bad") is derived
+    from their WooCommerce Membership post (post_type='wc_user_membership'),
+    not from 7903_wc_customer_lookup. That table's trigger only fires on
+    name/email/city/state/postcode/customer_id edits, so a plan change alone
+    never reached process_and_save_members before. This routes those post
+    changes to the same member sync, keyed off the resolved customer_id.
+    """
+    if changes is None or len(changes) == 0:
+        return
+    post_ids = [change["id"] for change in changes]
+
+    mydb = mysql.connector.connect(
+        host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+    )
+    mycursor = mydb.cursor(dictionary=True)
+    query = f"""
+        SELECT DISTINCT wcl.customer_id
+        FROM `7903_posts` p
+        JOIN `7903_wc_customer_lookup` wcl ON wcl.user_id = p.post_author
+        WHERE p.ID IN ({', '.join(['%s'] * len(post_ids))})
+          AND p.post_type = 'wc_user_membership'
+    """
+    mycursor.execute(query, post_ids)
+    results = mycursor.fetchall()
+    mydb.close()
+
+    if not results:
+        # None of the changed posts were membership posts (e.g. they were
+        # orders/products) — leave those trigger rows for the other
+        # 7903_posts handlers to mark processed.
+        return
+
+    customer_ids = [row["customer_id"] for row in results]
+    sync_members_to_salesforce(customer_ids, changes)
 
 
 def process_and_save_orders(changes):
@@ -1276,6 +1329,10 @@ if __name__ == "__main__":
                 process_and_save_orders(changes_data)
             except Exception as e:
                 print(e)
+            try:
+                process_and_save_members_from_posts(changes_data)
+            except Exception as e:
+                print("Error save_members_from_posts", e)
         # The check for changes in 7903_woocommerce_oder_itemmeta is disabled because it was placed there to solve an issue in
         # the staging site, which is not present in the production site. The issue was that certain changes in items in woocommerce
         # caused certain changes in the itemmeta table. To catch those this was placed here.
